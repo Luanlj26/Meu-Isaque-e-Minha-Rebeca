@@ -1,0 +1,2100 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Festival Meu Isaque e Minha Rebeca - Sistema de Cadastro</title>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #F5F0F0;
+            color: #333;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #D01010 0%, #B00E0E 50%, #8B0A0A 100%);
+            color: white;
+            padding: 20px 40px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.05) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .header .logo-placeholder {
+            width: 60px;
+            height: 60px;
+            background: rgba(255,255,255,0.15);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            font-weight: bold;
+            border: 3px solid rgba(255,255,255,0.3);
+            flex-shrink: 0;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
+            letter-spacing: 1px;
+        }
+
+        .header .subtitle {
+            font-size: 13px;
+            opacity: 0.8;
+            margin-top: 2px;
+        }
+
+        .tabs {
+            display: flex;
+            background: white;
+            border-bottom: 3px solid #D01010;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .tab-btn {
+            padding: 16px 32px;
+            border: none;
+            background: none;
+            font-size: 15px;
+            font-weight: 600;
+            color: #888;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+            letter-spacing: 0.5px;
+        }
+
+        .tab-btn::after {
+            content: '';
+            position: absolute;
+            bottom: -3px;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: #D01010;
+            transform: scaleX(0);
+            transition: transform 0.3s;
+        }
+
+        .tab-btn:hover {
+            color: #D01010;
+            background: #FCE8E8;
+        }
+
+        .tab-btn.active {
+            color: #D01010;
+        }
+
+        .tab-btn.active::after {
+            transform: scaleX(1);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 30px;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ===== Landing Page ===== */
+        .landing {
+            text-align: center;
+            padding: 20px 0;
+        }
+
+        .landing-banner {
+            background: linear-gradient(135deg, #D01010 0%, #B00E0E 100%);
+            border-radius: 16px;
+            padding: 60px 40px 50px;
+            margin-bottom: 30px;
+            color: white;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .landing-banner::before {
+            content: '';
+            position: absolute;
+            top: -30%;
+            right: -20%;
+            width: 400px;
+            height: 400px;
+            background: radial-gradient(circle, rgba(255,255,255,0.08) 0%, transparent 70%);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
+        .landing-banner::after {
+            content: '';
+            position: absolute;
+            bottom: -20%;
+            left: -10%;
+            width: 300px;
+            height: 300px;
+            background: radial-gradient(circle, rgba(255,255,255,0.05) 0%, transparent 70%);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
+        .landing-banner .icon-grande {
+            font-size: 64px;
+            margin-bottom: 15px;
+            display: block;
+        }
+
+        .landing-banner h2 {
+            font-size: 32px;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .landing-banner p {
+            font-size: 16px;
+            opacity: 0.9;
+            max-width: 600px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+
+        .contador-card {
+            background: white;
+            border-radius: 16px;
+            padding: 35px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+            border: 1px solid #f0e8e8;
+            margin-bottom: 30px;
+            display: inline-block;
+            min-width: 280px;
+        }
+
+        .contador-numero {
+            font-size: 56px;
+            font-weight: 800;
+            color: #D01010;
+            line-height: 1;
+        }
+
+        .contador-label {
+            font-size: 16px;
+            color: #888;
+            margin-top: 8px;
+        }
+
+        .landing-buttons {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+
+        .btn-landing {
+            padding: 18px 48px;
+            border: none;
+            border-radius: 12px;
+            font-size: 17px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-landing-primary {
+            background: #D01010;
+            color: white;
+            box-shadow: 0 4px 15px rgba(208,16,16,0.3);
+        }
+
+        .btn-landing-primary:hover {
+            background: #B00E0E;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(208,16,16,0.4);
+        }
+
+        .btn-landing-secondary {
+            background: white;
+            color: #D01010;
+            border: 2px solid #D01010;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.06);
+        }
+
+        .btn-landing-secondary:hover {
+            background: #FCE8E8;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+        }
+
+        .info-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .info-card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+            border: 1px solid #f0e8e8;
+            text-align: center;
+        }
+
+        .info-card .info-icon {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+
+        .info-card h4 {
+            font-size: 16px;
+            color: #D01010;
+            margin-bottom: 6px;
+        }
+
+        .info-card p {
+            font-size: 14px;
+            color: #888;
+            line-height: 1.5;
+        }
+
+        /* ===== Fim Landing ===== */
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+
+        .page-header h2 {
+            font-size: 22px;
+            color: #D01010;
+            font-weight: 600;
+        }
+
+        .btn {
+            padding: 10px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: #D01010;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #B00E0E;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(208,16,16,0.3);
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(40,167,69,0.3);
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+            transform: translateY(-1px);
+        }
+
+        .btn-warning {
+            background: #ffc107;
+            color: #333;
+        }
+
+        .btn-warning:hover {
+            background: #e0a800;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .btn-sm {
+            padding: 6px 14px;
+            font-size: 12px;
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 2px solid #D01010;
+            color: #D01010;
+        }
+
+        .btn-outline:hover {
+            background: #D01010;
+            color: white;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+            border: 1px solid #f0e8e8;
+        }
+
+        .table-container {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        thead {
+            background: #D01010;
+            color: white;
+        }
+
+        th {
+            padding: 14px 16px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 13px;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+        }
+
+        td {
+            padding: 12px 16px;
+            border-bottom: 1px solid #f0e8e8;
+            vertical-align: middle;
+        }
+
+        td.nome-cell {
+            max-width: 250px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        td.email-cell {
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        td.telefone-cell {
+            white-space: nowrap;
+        }
+        td.numero-cell {
+            white-space: nowrap;
+        }
+
+        td.valor-cell {
+            white-space: nowrap;
+            font-weight: 700;
+            color: #D01010;
+        }
+
+        td.pagamento-cell {
+            white-space: nowrap;
+        }
+
+        td.id-cell {
+            white-space: nowrap;
+        }
+
+        td.pulseiras-cell {
+            text-align: center;
+            white-space: nowrap;
+        }
+
+        tbody tr:hover {
+            background: #FCE8E8;
+        }
+
+        tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .actions {
+            display: flex;
+            gap: 6px;
+            flex-wrap: nowrap;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+
+        .empty-state .empty-icon {
+            font-size: 64px;
+            margin-bottom: 15px;
+            opacity: 0.3;
+        }
+
+        .analise-badge {
+            display: inline-flex; align-items: center; gap: 2px;
+            padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 600;
+            margin: 0 1px; cursor: help;
+        }
+        .analise-badge.ok { background: #d4edda; color: #155724; }
+        .analise-badge.erro { background: #f8d7da; color: #721c24; }
+        .analise-badge.pendente { background: #fff3cd; color: #856404; }
+
+        .modal-overlay {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal-content {
+            background: white; border-radius: 12px; padding: 25px; max-width: 700px;
+            width: 95%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .modal-header h3 { font-size: 18px; color: #D01010; }
+        .modal-close { background: none; border: none; font-size: 22px; cursor: pointer; color: #999; padding: 4px; }
+        .modal-close:hover { color: #333; }
+        .modal-body { font-size: 14px; }
+        .modal-body .analise-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f0e8e8; }
+        .modal-body .analise-row:last-child { border-bottom: none; }
+        .modal-body .analise-label { font-weight: 600; color: #555; }
+        .modal-body .analise-value { font-weight: 600; }
+
+        .empty-state p {
+            font-size: 16px;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 5px;
+        }
+
+        .form-group.full-width {
+            grid-column: 1 / -1;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 6px;
+            letter-spacing: 0.3px;
+        }
+
+        .form-group label .required {
+            color: #D01010;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 11px 14px;
+            border: 2px solid #e0d8d8;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+            outline: none;
+            background: #FAF8F8;
+        }
+
+        .form-control:focus {
+            border-color: #D01010;
+            background: white;
+        }
+
+        .message {
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+            font-weight: 500;
+        }
+
+        .message.success {
+            display: block;
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .message.error {
+            display: block;
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .message.info {
+            display: block;
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .form-buttons {
+            display: flex;
+            gap: 12px;
+            margin-top: 25px;
+            padding-top: 20px;
+            border-top: 1px solid #f0e8e8;
+        }
+
+        .busca-container {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .busca-container input {
+            padding: 9px 14px;
+            border: 2px solid #e0d8d8;
+            border-radius: 8px;
+            font-size: 14px;
+            outline: none;
+            width: 300px;
+        }
+
+        .busca-container input:focus {
+            border-color: #D01010;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+
+        .loading::after {
+            content: '';
+            display: inline-block;
+            width: 24px;
+            height: 24px;
+            border: 3px solid #f0e8e8;
+            border-top-color: #D01010;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .badge-numeros {
+            background: #FCE8E8;
+            color: #D01010;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            display: inline-block;
+        }
+
+        .registro-count {
+            font-size: 13px;
+            color: #888;
+            margin-top: 4px;
+        }
+
+        .registration-card {
+            display: none;
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: 0 1px 6px rgba(0,0,0,0.08);
+            border: 1px solid #f0e8e8;
+            font-size: 14px;
+        }
+        .registration-card .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 10px;
+        }
+        .registration-card .card-id {
+            background: #D01010;
+            color: white;
+            padding: 2px 10px;
+            border-radius: 10px;
+            font-size: 12px;
+            font-weight: 700;
+        }
+        .registration-card .card-name {
+            font-size: 16px;
+            font-weight: 700;
+            color: #333;
+            word-break: break-word;
+        }
+        .registration-card .card-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px 16px;
+            padding: 4px 0;
+            font-size: 13px;
+            color: #555;
+        }
+        .registration-card .card-row .label {
+            font-weight: 600;
+            color: #888;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        .registration-card .card-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #f0e8e8;
+            flex-wrap: wrap;
+        }
+        .registration-card .card-pagamento {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-top: 6px;
+        }
+
+        .mobile-only { display: none !important; }
+        .desktop-only { display: block !important; }
+
+        @media (max-width: 768px) {
+            .desktop-only { display: none !important; }
+            .mobile-only { display: block !important; }
+            .registration-card { display: block; }
+            .table-container table { display: none; }
+            .header {
+                padding: 15px 20px;
+            }
+            .header h1 {
+                font-size: 18px;
+            }
+            .container {
+                padding: 15px;
+            }
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+            .tab-btn {
+                padding: 12px 16px;
+                font-size: 13px;
+            }
+            .page-header {
+                flex-direction: column;
+                gap: 12px;
+                align-items: flex-start;
+            }
+            .actions {
+                flex-direction: column;
+            }
+            .busca-container input {
+                width: 100%;
+            }
+            .info-section {
+                grid-template-columns: 1fr;
+            }
+            .form-buttons {
+                flex-wrap: wrap;
+            }
+            .form-buttons .btn {
+                flex: 1 1 auto;
+                min-width: 120px;
+            }
+            .landing-banner {
+                padding: 40px 20px;
+            }
+            .landing-banner h2 {
+                font-size: 24px;
+            }
+            .btn-landing {
+                padding: 14px 32px;
+                font-size: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <img src="../imagem_evento.jpeg" alt="Logo" style="width:60px;height:60px;border-radius:50%;object-fit:cover;border:3px solid rgba(255,255,255,0.3);flex-shrink:0;">
+        <div>
+            <h1>Festival Meu Isaque e Minha Rebeca</h1>
+            <div class="subtitle">Sistema de Cadastro e Gerenciamento</div>
+        </div>
+    </div>
+
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('inicio')">&#127968; Início</button>
+        <button class="tab-btn" onclick="switchTab('listagem')">&#128203; Listagem</button>
+        <button class="tab-btn" onclick="switchTab('cadastro')">&#10133; Cadastro</button>
+    </div>
+
+    <div class="container">
+        <div id="message-container"></div>
+
+        <!-- Aba Início (Landing Page) -->
+        <div id="tab-inicio" class="tab-content active">
+            <div class="landing">
+                <div class="landing-banner">
+                    <img src="../imagem_evento.jpeg" alt="Logo" style="width:100px;height:100px;border-radius:50%;object-fit:cover;border:4px solid rgba(255,255,255,0.4);margin-bottom:15px;display:block;margin-left:auto;margin-right:auto;">
+                    <h2>Festival Meu Isaque e Minha Rebeca</h2>
+                    <p>
+                        Venha participar do nosso festival! 
+                        Uma celebração especial com música, comidas típicas e muita alegria.
+                        Garanta já sua pulseira e concorra a prêmios incríveis com os números da sorte!
+                    </p>
+                </div>
+
+                <div class="contador-card">
+                    <div class="contador-numero" id="contador-pessoas">0</div>
+                    <div class="contador-label">pessoas cadastradas</div>
+                </div>
+
+
+                <div class="info-section">
+                    <div class="info-card">
+                        <div class="info-icon">&#127926;</div>
+                        <h4>Música ao Vivo</h4>
+                        <p>Apresentações musicais com os melhores artistas da região</p>
+                    </div>
+                    <div class="info-card">
+                        <div class="info-icon">&#127869;</div>
+                        <h4>Comidas Típicas</h4>
+                        <p>Comidas típicas e bebidas variadas</p>
+                    </div>
+                    <div class="info-card">
+                        <div class="info-icon">&#127922;</div>
+                        <h4>Sorteios</h4>
+                        <p>Participe dos sorteios com seus números da sorte e concorra a prêmios</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Aba Listagem -->
+        <div id="tab-listagem" class="tab-content">
+            <div class="page-header">
+                <div>
+                    <h2>Registros Cadastrados</h2>
+                    <div class="registro-count" id="registro-count">0 registro(s)</div>
+                </div>
+                <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                    <div class="busca-container">
+                        <input type="text" id="busca-input" placeholder="Buscar por nome, email ou telefone..." oninput="filtrarRegistros()">
+                    </div>
+                    <button class="btn btn-sm btn-outline" onclick="carregarRegistros()" title="Recarregar dados do servidor">&#128260; Sincronizar</button>
+                    <span id="sync-status" style="font-size:12px;padding:4px 8px;border-radius:4px;background:#f0f0f0;color:#888;white-space:nowrap;">&#9679; local</span>
+                    <button class="btn btn-sm btn-primary" onclick="exportarExcel()">&#128229; Exportar XLSX</button>
+                    <button class="btn btn-sm btn-outline" onclick="document.getElementById('import-file').click()">&#128194; Importar XLSX</button>
+                    <input type="file" id="import-file" accept=".xlsx" style="display:none" onchange="importarExcel(event)">
+                </div>
+            </div>
+            <div class="card" style="margin-bottom:20px;display:flex;align-items:center;gap:15px;padding:15px 25px;flex-wrap:wrap;">
+                <span style="font-size:24px;">&#128179;</span>
+                <div style="flex:1;min-width:200px;">
+                    <div style="font-size:13px;font-weight:600;color:#555;margin-bottom:2px;">CHAVE PIX</div>
+                    <div style="font-size:16px;font-weight:700;color:#333;word-break:break-all;" id="pix-display">luanborges26@outlook.com</div>
+                </div>
+                <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                    <button class="btn btn-success" onclick="copiarPix()">&#128203; Copiar PIX</button>
+                    <button class="btn btn-outline" onclick="mostrarQRCode()" title="Acessar do celular">&#128241;</button>
+                </div>
+            </div>
+            <div class="card" style="margin-bottom:20px;display:flex;align-items:center;gap:20px;padding:15px 25px;flex-wrap:wrap;">
+                <span style="font-size:28px;">&#128279;</span>
+                <div style="flex:1;min-width:200px;">
+                    <div style="font-size:13px;font-weight:600;color:#555;margin-bottom:2px;">COMPARTILHE O AUTO-CADASTRO</div>
+                    <div style="font-size:14px;font-weight:600;color:#333;word-break:break-all;" id="autocadastro-link">Carregando...</div>
+                </div>
+                <img id="qr-autocadastro" src="" alt="QR" style="width:60px;height:60px;border-radius:8px;cursor:pointer;border:1px solid #e0d8d8;" onclick="mostrarQRCode()" title="Clique para ampliar">
+                <button class="btn btn-sm btn-primary" onclick="compartilharLink()">&#128228; Compartilhar</button>
+            </div>
+            <div class="card">
+                <div id="loading-listagem" class="loading">Carregando registros</div>
+                <div class="table-container" id="table-container" style="display:none;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>NOME</th>
+                                <th>TELEFONE</th>
+                                <th>EMAIL</th>
+                                <th>PULSEIRAS</th>
+                                <th>VALOR TOTAL</th>
+                                <th>NÚMEROS DA SORTE</th>
+                                <th>PAGAMENTO</th>
+                                <th>COMPROVANTE</th>
+                                <th>AÇÕES</th>
+                            </tr>
+                        </thead>
+                        <tbody id="registros-tbody"></tbody>
+                    </table>
+                </div>
+                <div id="registros-cards" class="mobile-only"></div>
+                <div id="empty-state" class="empty-state" style="display:none;">
+                    <div class="empty-icon">&#128203;</div>
+                    <p>Nenhum registro encontrado</p>
+                    <button class="btn btn-primary" style="margin-top:15px;" onclick="switchTab('cadastro')">&#10133; Novo Cadastro</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Aba Cadastro -->
+        <div id="tab-cadastro" class="tab-content">
+            <div class="page-header">
+                <h2 id="form-title">Novo Cadastro</h2>
+            </div>
+            <div class="card">
+                <form id="cadastro-form" onsubmit="return salvarRegistro(event)">
+                    <input type="hidden" id="edit-id" value="">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>NOME <span class="required">*</span></label>
+                            <input type="text" class="form-control" id="nome" placeholder="Nome completo" required>
+                        </div>
+                        <div class="form-group">
+                            <label>TELEFONE <span class="required">*</span></label>
+                            <input type="text" class="form-control" id="telefone" placeholder="(11) 99999-9999" required>
+                        </div>
+                        <div class="form-group">
+                            <label>EMAIL <span class="required">*</span></label>
+                            <input type="email" class="form-control" id="email" placeholder="email@exemplo.com" required>
+                        </div>
+                        <div class="form-group">
+                            <label>QUANTIDADE DE PULSEIRAS</label>
+                            <input type="number" class="form-control" id="quantidade_pulseiras" placeholder="Quantidade" min="0" oninput="atualizarValorPulseiras()">
+                            <div id="valor-pulseiras-display" style="margin-top:8px;font-size:15px;font-weight:700;color:#D01010;display:none;"></div>
+                        </div>
+                        <div class="form-group full-width">
+                            <label>NÚMEROS DA SORTE (gerados automaticamente)</label>
+                            <div id="numeros-automaticos" style="padding:10px 0;min-height:20px;font-size:14px;color:#888;">
+                                Defina a quantidade de pulseiras para gerar os números
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-buttons">
+                        <button type="submit" class="btn btn-success" id="btn-salvar">&#10003; Cadastrar</button>
+                        <button type="button" class="btn btn-secondary" onclick="limparFormulario()">Limpar</button>
+                        <button type="button" class="btn btn-secondary" onclick="sairCadastro()">&#128281; Sair</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const STORAGE_KEY = 'evento_junho_registros';
+        let todosRegistros = [];
+
+        function getRegistros() {
+            try {
+                const data = localStorage.getItem(STORAGE_KEY);
+                return data ? JSON.parse(data) : [];
+            } catch {
+                return [];
+            }
+        }
+
+        function getIdsExcluidos() {
+            try { return JSON.parse(localStorage.getItem('evento_junho_excluidos') || '[]'); }
+            catch { return []; }
+        }
+
+        function setIdsExcluidos(ids) {
+            localStorage.setItem('evento_junho_excluidos', JSON.stringify(ids));
+        }
+
+        function saveRegistros(data) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+            try {
+                fetch('/api/sync-registros', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (window.API_TOKEN || '') },
+                    body: JSON.stringify({
+                        registros: data,
+                        excluidos: getIdsExcluidos()
+                    })
+                }).catch(function() {
+                    console.warn('saveRegistros: falha ao sincronizar');
+                });
+            } catch(e) {
+                console.warn('saveRegistros: erro', e);
+            }
+        }
+
+        function generateUUID() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                const r = Math.random() * 16 | 0;
+                return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+            });
+        }
+
+        function resequenceRegistros(registros) {
+            let proximoNumero = 1;
+            for (let i = 0; i < registros.length; i++) {
+                registros[i].id = String(i + 1);
+                if (!registros[i]._uuid) registros[i]._uuid = generateUUID();
+                const qtd = parseInt(registros[i].quantidade_pulseiras, 10) || 0;
+                const nums = [];
+                for (let j = 0; j < qtd; j++) {
+                    nums.push(proximoNumero);
+                    proximoNumero++;
+                }
+                registros[i].numeros_sorte = nums.join(',');
+            }
+            setProximoNumero(proximoNumero);
+            return registros;
+        }
+
+        function getNextId(registros) {
+            return registros.length + 1;
+        }
+
+        function recalcularProximoNumero() {
+            const registros = getRegistros();
+            let maxNum = 0;
+            for (const r of registros) {
+                if (r.numeros_sorte) {
+                    for (const n of r.numeros_sorte.split(',')) {
+                        const num = parseInt(n.trim(), 10);
+                        if (!isNaN(num) && num > maxNum) maxNum = num;
+                    }
+                }
+            }
+            const correto = maxNum + 1;
+            const atual = getProximoNumero();
+            if (atual !== correto) {
+                setProximoNumero(correto);
+            }
+        }
+
+        function getProximoNumero() {
+            const val = localStorage.getItem('evento_junho_proximo_numero');
+            const num = parseInt(val, 10);
+            return !isNaN(num) && num > 0 ? num : 1;
+        }
+
+        function setProximoNumero(val) {
+            localStorage.setItem('evento_junho_proximo_numero', String(val));
+        }
+
+        function numerosDisponiveis(qtd) {
+            const inicio = getProximoNumero();
+            const fim = inicio + qtd - 1;
+            if (fim > 300) return null;
+            const nums = [];
+            for (let i = inicio; i <= fim; i++) nums.push(i);
+            return nums;
+        }
+
+        function reservarNumeros(qtd) {
+            const nums = numerosDisponiveis(qtd);
+            if (!nums) return null;
+            setProximoNumero(nums[nums.length - 1] + 1);
+            return nums;
+        }
+
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+            document.getElementById('tab-' + tab).classList.add('active');
+            document.querySelectorAll('.tab-btn').forEach(el => {
+                if (el.textContent.includes('Início') && tab === 'inicio') el.classList.add('active');
+                if (el.textContent.includes('Listagem') && tab === 'listagem') el.classList.add('active');
+                if (el.textContent.includes('Cadastro') && tab === 'cadastro') el.classList.add('active');
+            });
+            if (tab === 'listagem') {
+                cancelarEdicao();
+                carregarRegistros();
+            }
+            if (tab === 'inicio') {
+                carregarContagem();
+            }
+        }
+
+        function mostrarMensagem(texto, tipo) {
+            const container = document.getElementById('message-container');
+            container.innerHTML = '<div class="message ' + tipo + '">' + texto + '</div>';
+            setTimeout(() => {
+                const msg = container.querySelector('.message');
+                if (msg) msg.style.display = 'none';
+            }, 5000);
+        }
+
+        function carregarContagem() {
+            const registros = getRegistros();
+            document.getElementById('contador-pessoas').textContent = registros.length;
+        }
+
+        let syncStatus = '';
+
+        function atualizarSyncStatus() {
+            const el = document.getElementById('sync-status');
+            if (!el) return;
+            if (syncStatus === 'servidor') {
+                el.style.background = '#d4edda';
+                el.style.color = '#155724';
+                el.innerHTML = '&#9679; servidor';
+            } else if (syncStatus === 'servidor_vazio') {
+                el.style.background = '#fff3cd';
+                el.style.color = '#856404';
+                el.innerHTML = '&#9679; servidor (vazio)';
+            } else {
+                el.style.background = '#f0f0f0';
+                el.style.color = '#888';
+                el.innerHTML = '&#9679; local';
+            }
+        }
+
+        async function carregarRegistros(silent) {
+            if (!silent) {
+                const loading = document.getElementById('loading-listagem');
+                const tableContainer = document.getElementById('table-container');
+                const emptyState = document.getElementById('empty-state');
+                loading.style.display = 'block';
+                tableContainer.style.display = 'none';
+                emptyState.style.display = 'none';
+            }
+
+            try {
+                const resp = await fetch('/api/registros', { cache: 'no-store', headers: { 'Authorization': 'Bearer ' + (window.API_TOKEN || '') } });
+                if (resp.status === 401) {
+                    mostrarMensagem('Erro de autentica\u00e7\u00e3o. Token inv\u00e1lido. Reinicie o servidor.', 'error');
+                } else if (resp.ok) {
+                    const body = await resp.json();
+                    const serverRegistros = body.registros || body;
+
+                    if (Array.isArray(serverRegistros)) {
+                        // Merge por UUID: preserva registros locais que ainda não foram pro servidor
+                        const serverUuids = new Set(serverRegistros.map(function(r) { return r._uuid; }));
+                        const serverExcluidos = new Set(body.excluidos || []);
+                        let merged = [...serverRegistros];
+                        const localData = getRegistros();
+                        for (const r of localData) {
+                            if (r._uuid && !serverUuids.has(r._uuid) && !serverExcluidos.has(r._uuid) && !serverExcluidos.has(String(r.id))) {
+                                merged.push(r);
+                            }
+                        }
+
+                        merged = resequenceRegistros(merged);
+                        localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+                        // Reenvia dados mesclados para o servidor
+                        fetch('/api/sync-registros', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (window.API_TOKEN || '') },
+                            body: JSON.stringify({ registros: merged, excluidos: getIdsExcluidos() })
+                        }).catch(function() {});
+                    }
+                    syncStatus = 'servidor';
+                }
+            } catch(e) {
+                if (!syncStatus) syncStatus = 'local';
+            }
+            atualizarSyncStatus();
+
+            todosRegistros = getRegistros();
+            if (!silent) {
+                document.getElementById('loading-listagem').style.display = 'none';
+                filtrarRegistros();
+            } else {
+                filtrarRegistros();
+            }
+        }
+
+        // Auto-refresh silencioso a cada 8 segundos
+        let autoRefreshTimer = setInterval(function() {
+            const tabListagem = document.getElementById('tab-listagem');
+            if (tabListagem && tabListagem.classList.contains('active')) {
+                carregarRegistros(true);
+            }
+        }, 8000);
+
+        function filtrarRegistros() {
+            const termo = document.getElementById('busca-input').value.toLowerCase();
+            const filtered = termo ? todosRegistros.filter(r =>
+                (r.nome || '').toLowerCase().includes(termo) ||
+                (r.email || '').toLowerCase().includes(termo) ||
+                (r.telefone || '').toLowerCase().includes(termo)
+            ) : todosRegistros;
+
+            renderizarTabela(filtered);
+        }
+
+        function renderizarTabela(registros) {
+            const tableContainer = document.getElementById('table-container');
+            const cardsContainer = document.getElementById('registros-cards');
+            const emptyState = document.getElementById('empty-state');
+            const tbody = document.getElementById('registros-tbody');
+            const count = document.getElementById('registro-count');
+
+            count.textContent = registros.length + ' registro(s)';
+
+            if (registros.length === 0) {
+                tableContainer.style.display = 'none';
+                cardsContainer.style.display = 'none';
+                emptyState.style.display = 'block';
+                return;
+            }
+
+            tableContainer.style.display = 'block';
+            cardsContainer.style.display = 'block';
+            emptyState.style.display = 'none';
+
+            // Desktop table
+            tbody.innerHTML = registros.map(r => {
+                const numeros = r.numeros_sorte ? r.numeros_sorte.split(',').filter(Boolean) : [];
+                const numerosHtml = numeros.length > 0
+                    ? numeros.map(n => '<span class="badge-numeros">' + n.trim() + '</span>').join(' ')
+                    : '<span style="color:#999;">&mdash;</span>';
+                const qtd = parseInt(r.quantidade_pulseiras, 10) || 0;
+                const valorTotal = qtd <= 50 ? qtd * 7 : 50 * 7 + (qtd - 50) * 10;
+                const pago = r.pagamento === 'Confirmado';
+                return '<tr>' +
+                    '<td class="id-cell"><strong>' + r.id + '</strong></td>' +
+                    '<td class="nome-cell">' + escHtml(r.nome || '') + '</td>' +
+                    '<td class="telefone-cell">' + escHtml(r.telefone || '') + '</td>' +
+                    '<td class="email-cell">' + escHtml(r.email || '') + '</td>' +
+                    '<td class="pulseiras-cell">' + (r.quantidade_pulseiras || '0') + '</td>' +
+                    '<td class="valor-cell">R$ ' + valorTotal.toFixed(2) + '</td>' +
+                    '<td class="numero-cell">' + numerosHtml + '</td>' +
+                    '<td class="pagamento-cell">' + renderBotoesPagamento(r) + '</td>' +
+                    '<td style="text-align:center;min-width:130px;">' + gerarColunaComprovante(r) + '</td>' +
+                    '<td class="actions">' +
+                    '<button class="btn btn-warning btn-sm" onclick="editarRegistro(' + r.id + ')">&#9998; Editar</button>' +
+                    '<button class="btn btn-danger btn-sm" onclick="excluirRegistro(' + r.id + ')">&#128465; Excluir</button>' +
+                    '</td>' +
+                    '</tr>';
+            }).join('');
+
+            // Mobile cards
+            cardsContainer.innerHTML = registros.map(r => {
+                const numeros = r.numeros_sorte ? r.numeros_sorte.split(',').filter(Boolean) : [];
+                const numerosHtml = numeros.length > 0
+                    ? numeros.map(n => '<span class="badge-numeros">' + n.trim() + '</span>').join(' ')
+                    : '<span style="color:#999;">&mdash;</span>';
+                const qtd = parseInt(r.quantidade_pulseiras, 10) || 0;
+                const valorTotal = qtd <= 50 ? qtd * 7 : 50 * 7 + (qtd - 50) * 10;
+                return '<div class="registration-card">' +
+                    '<div class="card-header">' +
+                        '<div><span class="card-id">#' + r.id + '</span></div>' +
+                        '<div style="display:flex;gap:6px;">' +
+                            '<button class="btn btn-warning btn-sm" onclick="editarRegistro(' + r.id + ')" style="font-size:14px;padding:6px 12px;min-width:44px;min-height:44px;">&#9998;</button>' +
+                            '<button class="btn btn-danger btn-sm" onclick="excluirRegistro(' + r.id + ')" style="font-size:14px;padding:6px 12px;min-width:44px;min-height:44px;">&#128465;</button>' +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="card-name">' + escHtml(r.nome || '') + '</div>' +
+                    '<div class="card-row"><span class="label">Telefone</span> ' + escHtml(r.telefone || '&mdash;') + '</div>' +
+                    '<div class="card-row"><span class="label">Email</span> ' + escHtml(r.email || '&mdash;') + '</div>' +
+                    '<div class="card-row">' +
+                        '<span><span class="label">Pulseiras</span> ' + (r.quantidade_pulseiras || '0') + '</span>' +
+                        '<span><span class="label">Valor</span> R$ ' + valorTotal.toFixed(2) + '</span>' +
+                    '</div>' +
+                    '<div class="card-row"><span class="label">N\u00fameros da Sorte</span> ' + numerosHtml + '</div>' +
+                    '<div class="card-pagamento">' +
+                        '<span class="label" style="font-size:11px;text-transform:uppercase;letter-spacing:0.3px;color:#888;font-weight:600;">Pagamento:</span> ' +
+                        renderBotoesPagamento(r) +
+                    '</div>' +
+                    '<div class="card-row" style="justify-content:center;">' + gerarColunaComprovanteMobile(r) + '</div>' +
+                    '</div>';
+            }).join('');
+        }
+
+        function renderBotoesPagamento(r) {
+            const pago = r.pagamento === 'Confirmado';
+            return '<div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">' +
+                (pago
+                    ? '<span style="display:inline-block;padding:4px 12px;border-radius:12px;font-size:11px;font-weight:700;background:#28a745;color:white;">Confirmado</span>'
+                    : '<button class="btn btn-success btn-sm" onclick="togglePagamento(' + r.id + ')" style="font-size:10px;padding:3px 8px;">&#10003; Confirmar</button>'
+                ) +
+                (r.comprovante
+                    ? '<button class="btn btn-sm btn-primary" onclick="verComprovanteModal(' + r.id + ')" style="font-size:10px;padding:3px 8px;">&#128065; Ver</button>'
+                    : '<button class="btn btn-sm btn-outline" onclick="abrirUploadComprovante(' + r.id + ')" style="font-size:10px;padding:3px 8px;">&#128259; Anexar</button>'
+                ) +
+                '</div>';
+        }
+
+        function gerarColunaComprovanteMobile(r) {
+            if (!r.comprovante) return '<span style="color:#999;font-size:12px;">N\u00e3o anexado</span>';
+            const ext = r.comprovante.split('.').pop().toLowerCase();
+            const isImg = ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext);
+            let html = '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">';
+            if (isImg) {
+                html += '<img src="/comprovantes/' + r.comprovante + '" style="width:60px;height:45px;object-fit:cover;border-radius:6px;border:1px solid #e0d8d8;cursor:pointer;" onclick="verComprovanteModal(' + r.id + ')" title="Clique para ampliar">';
+            } else {
+                html += '<div style="width:45px;height:45px;display:flex;align-items:center;justify-content:center;background:#fce8e8;border-radius:6px;border:1px solid #e0d8d8;font-size:20px;cursor:pointer;" onclick="verComprovanteModal(' + r.id + ')" title="' + (r.comprovante_nome || 'PDF') + '">&#128196;</div>';
+            }
+            html += '<div style="display:flex;gap:3px;">';
+            html += '<button class="btn btn-sm btn-primary" onclick="verComprovanteModal(' + r.id + ')" style="font-size:10px;padding:3px 6px;">&#128065; Ver</button>';
+            html += '<button class="btn btn-sm btn-outline" onclick="verAnalise(' + r.id + ')" style="font-size:10px;padding:3px 6px;">&#128270;</button>';
+            html += '<button class="btn btn-sm btn-success" onclick="abrirUploadComprovante(' + r.id + ')" style="font-size:10px;padding:3px 6px;" title="Substituir">&#128259;</button>';
+            html += '</div>';
+            html += gerarBadgesAnalise(r);
+            html += '</div>';
+            return html;
+        }
+
+        function escHtml(str) {
+            var div = document.createElement('div');
+            div.appendChild(document.createTextNode(str));
+            return div.innerHTML;
+        }
+
+        function atualizarValorPulseiras() {
+            const qtd = parseInt(document.getElementById('quantidade_pulseiras').value, 10) || 0;
+            const display = document.getElementById('valor-pulseiras-display');
+            const numsDisplay = document.getElementById('numeros-automaticos');
+            if (qtd <= 0) {
+                display.style.display = 'none';
+                numsDisplay.innerHTML = 'Defina a quantidade de pulseiras para gerar os números';
+                numsDisplay.style.color = '#888';
+                return;
+            }
+            const valorTotal = qtd <= 50 ? qtd * 7 : 50 * 7 + (qtd - 50) * 10;
+            display.style.display = 'block';
+            display.textContent = 'Valor total: R$ ' + valorTotal.toFixed(2);
+
+            const nums = numerosDisponiveis(qtd);
+            if (!nums) {
+                numsDisplay.innerHTML = '<span style="color:#dc3545;font-weight:600;">Números esgotados! Apenas ' + (300 - getProximoNumero() + 1) + ' números disponíveis.</span>';
+                numsDisplay.style.color = '#dc3545';
+            } else {
+                numsDisplay.innerHTML = nums.map(n => '<span class="badge-numeros">' + n + '</span>').join(' ');
+                numsDisplay.style.color = '#333';
+            }
+        }
+
+        function copiarPix() {
+            const chave = 'luanborges26@outlook.com';
+            navigator.clipboard.writeText(chave).then(() => {
+                mostrarMensagem('Chave PIX copiada para a área de transferência!', 'success');
+            }).catch(() => {
+                mostrarMensagem('Erro ao copiar. Copie manualmente: ' + chave, 'info');
+            });
+        }
+
+        function getBaseUrl() {
+            return window.PUBLIC_URL || (window.location.protocol + '//' + window.location.host);
+        }
+
+        function mostrarQRCode(tipo) {
+            const base = getBaseUrl();
+            const url = tipo === 'admin' ? base : base + '/auto-cadastro';
+            const titulo = tipo === 'admin' ? 'Admin' : 'Auto-Cadastro';
+            const body = document.getElementById('qr-modal-body');
+            body.innerHTML =
+                '<div style="text-align:center;">' +
+                '<p style="color:#555;margin-bottom:15px;font-size:14px;">Escaneie para acessar o ' + titulo + '</p>' +
+                '<div style="background:white;border-radius:12px;padding:10px;display:inline-block;box-shadow:0 2px 12px rgba(0,0,0,0.1);">' +
+                '<img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent(url) + '" alt="QR Code" style="width:200px;height:200px;border-radius:8px;">' +
+                '</div>' +
+                '<p style="margin-top:15px;font-size:16px;font-weight:700;color:#1565c0;word-break:break-all;">' + url + '</p>' +
+                '<div style="margin-top:15px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">' +
+                '<button class="btn btn-sm btn-outline" onclick="mostrarQRCode(\'admin\')">&#128272; Admin</button>' +
+                '<button class="btn btn-sm btn-primary" onclick="mostrarQRCode(\'auto\')">&#128221; Auto-Cadastro</button>' +
+                '</div>' +
+                '</div>';
+            document.getElementById('qr-modal').classList.add('active');
+        }
+
+        function compartilharLink() {
+            const base = getBaseUrl();
+            const url = base + '/auto-cadastro';
+            const texto = '🎉 Festival Meu Isaque e Minha Rebeca\n\nFaça seu cadastro aqui:\n' + url;
+            if (navigator.share) {
+                navigator.share({ title: 'Auto-Cadastro Festival', text: texto, url: url });
+            } else if (navigator.clipboard) {
+                navigator.clipboard.writeText(url).then(() => {
+                    mostrarMensagem('Link copiado! Envie para os participantes.', 'success');
+                });
+            } else {
+                mostrarMensagem('Link: ' + url, 'info');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            if (typeof XLSX === 'undefined') {
+                mostrarMensagem('Biblioteca XLSX não carregada. Import/Export Excel não estará disponível.', 'error');
+            }
+            recalcularProximoNumero();
+            carregarContagem();
+            carregarRegistros();
+
+            // Set auto-cadastro link and QR on page load
+            const base = getBaseUrl();
+            const autoUrl = base + '/auto-cadastro';
+            document.getElementById('autocadastro-link').textContent = autoUrl;
+            document.getElementById('qr-autocadastro').src = 'https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=' + encodeURIComponent(autoUrl);
+
+            // Check for upload result from form submission redirect
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('upload_done') === '1') {
+                const pending = localStorage.getItem('upload_pending');
+                if (pending) {
+                    localStorage.removeItem('upload_pending');
+                    try {
+                        const data = JSON.parse(pending);
+                        let registros = getRegistros();
+                        const idx = registros.findIndex(x => x.id == data.id);
+                        if (idx !== -1 && data.success) {
+                            registros[idx].comprovante = data.filename;
+                            registros[idx].comprovante_nome = data.original_name || data.filename;
+                            registros[idx].comprovante_analise = null;
+                            registros[idx].pagamento = 'Confirmado';
+                            saveRegistros(registros);
+                            mostrarMensagem('Comprovante anexado e pagamento confirmado!', 'success');
+                            carregarRegistros();
+                            if (data.filename) {
+                                pollOcrResult(data.filename, data.id);
+                            }
+                        } else if (idx !== -1) {
+                            mostrarMensagem('Erro: ' + (data.error || 'Falha no upload'), 'error');
+                        }
+                    } catch (e) {
+                        console.error('Upload pending error:', e);
+                    }
+                }
+                // Clean URL and go to listagem tab
+                window.history.replaceState({}, '', '/');
+                switchTab('listagem');
+            }
+        });
+
+        async function salvarRegistro(event) {
+            event.preventDefault();
+            const editId = document.getElementById('edit-id').value;
+            const dados = {
+                nome: document.getElementById('nome').value.trim(),
+                telefone: document.getElementById('telefone').value.trim(),
+                email: document.getElementById('email').value.trim(),
+                quantidade_pulseiras: document.getElementById('quantidade_pulseiras').value.trim()
+            };
+
+            if (!dados.nome || !dados.telefone || !dados.email) {
+                mostrarMensagem('Preencha todos os campos obrigatórios (Nome, Telefone e Email).', 'error');
+                return;
+            }
+
+            let registros = getRegistros();
+
+            if (editId) {
+                const idx = registros.findIndex(r => r.id == editId);
+                if (idx !== -1) {
+                    registros[idx] = { ...registros[idx], ...dados, pagamento: registros[idx].pagamento || 'Pendente' };
+                }
+                mostrarMensagem('Registro editado com sucesso!', 'success');
+            } else {
+                const record = {
+                    pagamento: 'Pendente',
+                    ...dados
+                };
+                registros.push(record);
+                mostrarMensagem('Cadastro realizado com sucesso!', 'success');
+            }
+            registros = resequenceRegistros(registros);
+
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(registros));
+            limparFormulario();
+
+            // Mostra dados locais imediatamente (sem esperar servidor)
+            document.querySelectorAll('.tab-content').forEach(function(el) { el.classList.remove('active'); });
+            document.querySelectorAll('.tab-btn').forEach(function(el) { el.classList.remove('active'); });
+            document.getElementById('tab-listagem').classList.add('active');
+            document.querySelectorAll('.tab-btn').forEach(function(el) {
+                if (el.textContent.includes('Listagem')) el.classList.add('active');
+            });
+            cancelarEdicao();
+            document.getElementById('loading-listagem').style.display = 'none';
+            todosRegistros = getRegistros();
+            filtrarRegistros();
+
+            try {
+                await fetch('/api/sync-registros', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (window.API_TOKEN || '') },
+                    body: JSON.stringify({
+                        registros: registros,
+                        excluidos: getIdsExcluidos()
+                    })
+                });
+                await carregarRegistros();
+            } catch(e) {}
+        }
+
+        function editarRegistro(id) {
+            const registros = getRegistros();
+            const registro = registros.find(r => r.id == id);
+            if (!registro) return;
+
+            document.getElementById('edit-id').value = registro.id;
+            document.getElementById('nome').value = registro.nome || '';
+            document.getElementById('telefone').value = registro.telefone || '';
+            document.getElementById('email').value = registro.email || '';
+            document.getElementById('quantidade_pulseiras').value = registro.quantidade_pulseiras || '';
+            atualizarValorPulseiras();
+
+            const numsDisplay = document.getElementById('numeros-automaticos');
+            if (registro.numeros_sorte) {
+                const nums = registro.numeros_sorte.split(',').filter(Boolean);
+                numsDisplay.innerHTML = nums.map(n => '<span class="badge-numeros">' + n.trim() + '</span>').join(' ');
+                numsDisplay.style.color = '#333';
+            }
+
+            document.getElementById('form-title').textContent = 'Editar Registro #' + registro.id;
+            document.getElementById('btn-salvar').innerHTML = '&#128190; Salvar Edição';
+            switchTab('cadastro');
+        }
+
+        function verComprovante(id) {
+            const registros = getRegistros();
+            const r = registros.find(x => x.id == id);
+            if (!r || !r.comprovante) { mostrarMensagem('Nenhum comprovante anexado.', 'error'); return; }
+            window.open('/comprovantes/' + r.comprovante, '_blank');
+        }
+
+        function gerarColunaComprovante(r) {
+            if (r.comprovante) {
+                const ext = r.comprovante.split('.').pop().toLowerCase();
+                const isImg = ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext);
+                let html = '<div style="display:flex;flex-direction:column;align-items:center;gap:4px;">';
+                if (isImg) {
+                    html += '<img src="/comprovantes/' + r.comprovante + '" style="width:80px;height:60px;object-fit:cover;border-radius:6px;border:1px solid #e0d8d8;cursor:pointer;" onclick="verComprovanteModal(' + r.id + ')" title="Clique para ampliar">';
+                } else {
+                    html += '<div style="width:80px;height:60px;display:flex;align-items:center;justify-content:center;background:#fce8e8;border-radius:6px;border:1px solid #e0d8d8;font-size:24px;cursor:pointer;" onclick="verComprovanteModal(' + r.id + ')" title="' + (r.comprovante_nome || 'PDF') + '">&#128196;</div>';
+                }
+                html += '<div style="display:flex;gap:2px;width:100%;">';
+                html += '<button class="btn btn-sm btn-primary" onclick="verComprovanteModal(' + r.id + ')" style="flex:1;font-size:10px;padding:3px 4px;">&#128065; Ver</button>';
+                html += '<button class="btn btn-sm btn-outline" onclick="verAnalise(' + r.id + ')" style="font-size:10px;padding:3px 4px;">&#128270;</button>';
+                html += '<button class="btn btn-sm btn-success" onclick="abrirUploadComprovante(' + r.id + ')" style="font-size:10px;padding:3px 4px;" title="Substituir comprovante">&#128259;</button>';
+                html += '</div>';
+                html += gerarBadgesAnalise(r);
+                html += '</div>';
+                return html;
+            } else {
+                return '<div style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 0;">' +
+                       '<span style="font-size:24px;color:#ccc;">&#128206;</span>' +
+                       '<span style="font-size:11px;color:#999;">N\u00e3o anexado</span>' +
+                       '</div>';
+            }
+        }
+
+        function abrirUploadComprovante(id) {
+            const registros = getRegistros();
+            const r = registros.find(x => x.id == id);
+            if (!r) return;
+            document.getElementById('upload-modal-id').value = id;
+            const qtd = parseInt(r.quantidade_pulseiras, 10) || 0;
+            const valorTotal = qtd <= 50 ? qtd * 7 : 50 * 7 + (qtd - 50) * 10;
+            document.getElementById('upload-modal-info').innerHTML =
+                '<strong>#' + id + ' - ' + (r.nome || '') + '</strong><br>' +
+                'Pulseiras: ' + qtd + ' | Valor: R$ ' + valorTotal.toFixed(2);
+            document.getElementById('upload-modal-file').value = '';
+            document.getElementById('upload-modal-status').textContent = '';
+            document.getElementById('upload-modal-btn').disabled = false;
+            document.getElementById('upload-modal-btn').innerHTML = '&#128259; Enviar Comprovante';
+            document.getElementById('upload-form-token').value = window.API_TOKEN || '';
+            document.getElementById('modal-upload').classList.add('active');
+        }
+
+        function gerarPreviewComprovante(r) {
+            if (!r.comprovante) return '';
+            const ext = r.comprovante.split('.').pop().toLowerCase();
+            const isImg = ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext);
+            if (isImg) {
+                return '<img src="/comprovantes/' + r.comprovante + '" style="width:80px;height:60px;object-fit:cover;border-radius:6px;border:1px solid #e0d8d8;cursor:pointer;" onclick="verComprovanteModal(' + r.id + ')" title="Clique para ampliar">';
+            } else {
+                return '<div style="width:80px;height:60px;display:flex;align-items:center;justify-content:center;background:#fce8e8;border-radius:6px;border:1px solid #e0d8d8;font-size:28px;cursor:pointer;" onclick="verComprovanteModal(' + r.id + ')" title="' + (r.comprovante_nome || 'PDF') + '">&#128196;</div>';
+            }
+        }
+
+        function verComprovanteModal(id) {
+            const registros = getRegistros();
+            const r = registros.find(x => x.id == id);
+            if (!r || !r.comprovante) { mostrarMensagem('Nenhum comprovante anexado.', 'error'); return; }
+            const ext = r.comprovante.split('.').pop().toLowerCase();
+            const isImg = ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext);
+            const body = document.getElementById('modal-analise-body');
+            document.querySelector('#modal-analise .modal-header h3').innerHTML = '&#128206; Comprovante #' + r.id;
+            let html = '<div class="analise-row"><span class="analise-label">Registro</span><span class="analise-value">#' + r.id + ' - ' + (r.nome || '') + '</span></div>';
+            html += '<div class="analise-row"><span class="analise-label">Arquivo</span><span class="analise-value">' + (r.comprovante_nome || r.comprovante) + '</span></div>';
+            if (isImg) {
+                html += '<div style="text-align:center;margin-top:15px;"><img src="/comprovantes/' + r.comprovante + '" style="max-width:100%;max-height:450px;border-radius:8px;border:1px solid #e0d8d8;box-shadow:0 2px 12px rgba(0,0,0,0.1);"></div>';
+            } else {
+                html += '<div style="text-align:center;margin-top:15px;padding:20px;"><span style="font-size:64px;display:block;margin-bottom:15px;">&#128196;</span><a href="/comprovantes/' + r.comprovante + '" target="_blank" class="btn btn-primary" style="text-decoration:none;">&#128206; Abrir PDF</a></div>';
+            }
+            body.innerHTML = html;
+            document.getElementById('modal-analise').classList.add('active');
+        }
+
+        function gerarBadgesAnalise(r) {
+            if (!r.comprovante_analise) return '';
+            let analise;
+            try { analise = JSON.parse(r.comprovante_analise); } catch { return ''; }
+            if (!analise) return '';
+            const badges = [];
+            badges.push('<div style="display:flex;gap:2px;flex-wrap:wrap;justify-content:center;">');
+            if (analise.valor_encontrado !== null) {
+                badges.push('<span class="analise-badge ok" title="Valor detectado: R$ ' + analise.valor_encontrado.toFixed(2) + '">R$</span>');
+            } else {
+                badges.push('<span class="analise-badge pendente" title="Valor n\u00e3o detectado">R$?</span>');
+            }
+            if (analise.chave_pix_encontrada) {
+                const cls = analise.chave_pix_encontrada.toLowerCase() === 'luanborges26@outlook.com' ? 'ok' : 'erro';
+                badges.push('<span class="analise-badge ' + cls + '" title="Chave PIX: ' + analise.chave_pix_encontrada + '">PIX</span>');
+            } else {
+                badges.push('<span class="analise-badge pendente" title="Chave PIX n\u00e3o detectada">PIX?</span>');
+            }
+            if (analise.data_pagamento) {
+                badges.push('<span class="analise-badge ok" title="Data: ' + analise.data_pagamento + '">DATA</span>');
+            } else {
+                badges.push('<span class="analise-badge pendente" title="Data n\u00e3o detectada">DATA?</span>');
+            }
+            badges.push('</div>');
+            return badges.join('');
+        }
+
+        function verAnalise(id) {
+            const registros = getRegistros();
+            const r = registros.find(x => x.id == id);
+            if (!r || !r.comprovante_analise) {
+                mostrarMensagem('Nenhuma an\u00e1lise dispon\u00edvel para este registro.', 'error');
+                return;
+            }
+            let analise;
+            try { analise = JSON.parse(r.comprovante_analise); } catch {
+                mostrarMensagem('Erro ao ler dados da an\u00e1lise.', 'error');
+                return;
+            }
+            const body = document.getElementById('modal-analise-body');
+            const rows = [];
+            rows.push('<div class="analise-row"><span class="analise-label">Registro</span><span class="analise-value">#' + r.id + ' - ' + (r.nome || '') + '</span></div>');
+
+            if (analise.valor_encontrado !== null) {
+                rows.push('<div class="analise-row"><span class="analise-label">Valor no comprovante</span><span class="analise-value" style="color:#28a745;">R$ ' + analise.valor_encontrado.toFixed(2) + '</span></div>');
+            } else {
+                rows.push('<div class="analise-row"><span class="analise-label">Valor no comprovante</span><span class="analise-value" style="color:#999;">N\u00e3o detectado</span></div>');
+            }
+
+            if (analise.chave_pix_encontrada) {
+                const cor = analise.chave_pix_encontrada.toLowerCase() === 'luanborges26@outlook.com' ? '#28a745' : '#dc3545';
+                const status = analise.chave_pix_encontrada.toLowerCase() === 'luanborges26@outlook.com' ? 'Corresponde' : 'DIVERGE';
+                rows.push('<div class="analise-row"><span class="analise-label">Chave PIX no comprovante</span><span class="analise-value" style="color:' + cor + ';">' + analise.chave_pix_encontrada + ' (' + status + ')</span></div>');
+            } else {
+                rows.push('<div class="analise-row"><span class="analise-label">Chave PIX no comprovante</span><span class="analise-value" style="color:#999;">N\u00e3o detectada</span></div>');
+            }
+
+            if (analise.data_pagamento) {
+                rows.push('<div class="analise-row"><span class="analise-label">Data do pagamento</span><span class="analise-value" style="color:#1565c0;">' + analise.data_pagamento + '</span></div>');
+            } else {
+                rows.push('<div class="analise-row"><span class="analise-label">Data do pagamento</span><span class="analise-value" style="color:#999;">N\u00e3o detectada</span></div>');
+            }
+
+            if (analise.hora_pagamento) {
+                rows.push('<div class="analise-row"><span class="analise-label">Hora do pagamento</span><span class="analise-value" style="color:#1565c0;">' + analise.hora_pagamento + '</span></div>');
+            } else {
+                rows.push('<div class="analise-row"><span class="analise-label">Hora do pagamento</span><span class="analise-value" style="color:#999;">N\u00e3o detectada</span></div>');
+            }
+
+            body.innerHTML = rows.join('');
+            document.getElementById('modal-analise').classList.add('active');
+        }
+
+        function fecharModalAnalise() {
+            document.getElementById('modal-analise').classList.remove('active');
+        }
+
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('modal-overlay')) {
+                fecharModalAnalise();
+            }
+        });
+
+        function sairCadastro() {
+            if (document.getElementById('edit-id').value || document.getElementById('nome').value || document.getElementById('telefone').value || document.getElementById('email').value) {
+                if (!confirm('Tem certeza que deseja sair? Os dados não salvos serão perdidos.')) return;
+            }
+            limparFormulario();
+            switchTab('listagem');
+        }
+
+        function cancelarEdicao() {
+            limparFormulario();
+        }
+
+        function limparFormulario() {
+            document.getElementById('edit-id').value = '';
+            document.getElementById('nome').value = '';
+            document.getElementById('telefone').value = '';
+            document.getElementById('email').value = '';
+            document.getElementById('quantidade_pulseiras').value = '';
+            document.getElementById('valor-pulseiras-display').style.display = 'none';
+            document.getElementById('numeros-automaticos').innerHTML = 'Defina a quantidade de pulseiras para gerar os números';
+            document.getElementById('numeros-automaticos').style.color = '#888';
+            document.getElementById('form-title').textContent = 'Novo Cadastro';
+            document.getElementById('btn-salvar').innerHTML = '&#10003; Cadastrar';
+        }
+
+        let excluirId = null;
+
+        function excluirRegistro(id) {
+            excluirId = id;
+            const registros = getRegistros();
+            const r = registros.find(x => x.id == id);
+            const nome = r ? r.nome : 'ID #' + id;
+            document.getElementById('excluir-nome').textContent = nome;
+            document.getElementById('modal-excluir').classList.add('active');
+        }
+
+        async function confirmarExclusao() {
+            if (excluirId === null) return;
+            let registros = getRegistros();
+            const antes = registros.length;
+            const deletedReg = registros.find(function(r) { return r.id == excluirId; });
+            var deletedUuid = deletedReg ? deletedReg._uuid : null;
+            registros = registros.filter(r => r.id != excluirId);
+            if (registros.length === antes) {
+                mostrarMensagem('Registro não encontrado.', 'error');
+                excluirId = null;
+                document.getElementById('modal-excluir').classList.remove('active');
+                return;
+            }
+            registros = resequenceRegistros(registros);
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(registros));
+            var excs = getIdsExcluidos();
+            if (deletedUuid && excs.indexOf(deletedUuid) === -1) excs.push(deletedUuid);
+            if (excs.indexOf(String(excluirId)) === -1) excs.push(String(excluirId));
+            setIdsExcluidos(excs);
+            try {
+                await fetch('/api/sync-registros', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (window.API_TOKEN || '') },
+                    body: JSON.stringify({ registros: registros, excluidos: excs })
+                });
+                mostrarMensagem('Registro excluído com sucesso!', 'success');
+                await carregarRegistros();
+            } catch(e) {
+                mostrarMensagem('Excluído localmente.', 'info');
+                todosRegistros = registros;
+                filtrarRegistros();
+            }
+            excluirId = null;
+            document.getElementById('modal-excluir').classList.remove('active');
+        }
+
+        function fecharModalExcluir() {
+            excluirId = null;
+            document.getElementById('modal-excluir').classList.remove('active');
+        }
+
+        async function togglePagamento(id) {
+            let registros = getRegistros();
+            const idx = registros.findIndex(r => r.id == id);
+            if (idx === -1) return;
+            registros[idx].pagamento = registros[idx].pagamento === 'Confirmado' ? 'Pendente' : 'Confirmado';
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(registros));
+            try {
+                await fetch('/api/sync-registros', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (window.API_TOKEN || '') },
+                    body: JSON.stringify({
+                        registros: registros,
+                        excluidos: getIdsExcluidos()
+                    })
+                });
+            } catch(e) {}
+            todosRegistros = registros;
+            filtrarRegistros();
+        }
+
+        let confirmacaoRegistroId = null;
+
+        function abrirModalConfirmacao(id) {
+            confirmacaoRegistroId = id;
+            const registros = getRegistros();
+            const r = registros.find(x => x.id == id);
+            if (!r) return;
+            const qtd = parseInt(r.quantidade_pulseiras, 10) || 0;
+            const valorTotal = qtd <= 50 ? qtd * 7 : 50 * 7 + (qtd - 50) * 10;
+            document.getElementById('confirmacao-info').innerHTML =
+                '<strong>#' + r.id + ' - ' + (r.nome || '') + '</strong><br>' +
+                'Pulseiras: ' + qtd + ' | Valor: R$ ' + valorTotal.toFixed(2);
+            document.getElementById('confirmacao-comprovante-input').value = '';
+            document.getElementById('confirmacao-status').textContent = '';
+            document.getElementById('btn-confirmar-pagamento').disabled = false;
+            document.getElementById('btn-confirmar-pagamento').innerHTML = '&#128259; Anexar e Confirmar Pagamento';
+            document.getElementById('modal-confirmacao').classList.add('active');
+        }
+
+        function fecharModalConfirmacao() {
+            document.getElementById('modal-confirmacao').classList.remove('active');
+            confirmacaoRegistroId = null;
+        }
+
+        async function pollOcrResult(filename, id, timeoutMs=60000) {
+            const start = Date.now();
+            while (Date.now() - start < timeoutMs) {
+                try {
+                    const resp = await fetch('/api/ocr/' + encodeURIComponent(filename));
+                    const data = await resp.json();
+                    if (data.status === 'done' && data.analise) {
+                        let registros = getRegistros();
+                        const idx = registros.findIndex(x => x.id == id);
+                        if (idx !== -1) {
+                            registros[idx].comprovante_analise = JSON.stringify(data.analise);
+                            if (registros[idx].pagamento !== 'Confirmado') {
+                                registros[idx].pagamento = 'Confirmado';
+                            }
+                            saveRegistros(registros);
+                            carregarRegistros();
+                        }
+                        return data;
+                    }
+                } catch (e) {
+                    console.error('OCR poll error:', e);
+                }
+                await new Promise(r => setTimeout(r, 1500));
+            }
+            return null;
+        }
+
+        async function confirmarPagamento() {
+            const fileInput = document.getElementById('confirmacao-comprovante-input');
+            const file = fileInput.files[0];
+            const status = document.getElementById('confirmacao-status');
+            const btn = document.getElementById('btn-confirmar-pagamento');
+
+            if (!file) {
+                status.innerHTML = '<span style="color:#dc3545;">&#9888; Selecione um comprovante primeiro.</span>';
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerHTML = '&#128190; Enviando...';
+            status.innerHTML = '<span style="color:#1565c0;">&#128259; Enviando comprovante...</span>';
+
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+                const resp = await fetch('/api/upload', { method: 'POST', headers: { 'Authorization': 'Bearer ' + (window.API_TOKEN || '') }, body: formData });
+                if (!resp.ok) throw new Error('Falha no upload (HTTP ' + resp.status + ')');
+                const result = await resp.json();
+                if (!result.success) throw new Error(result.error || 'Erro no upload');
+
+                let registros = getRegistros();
+                const idx = registros.findIndex(x => x.id == confirmacaoRegistroId);
+                if (idx === -1) throw new Error('Registro n\u00e3o encontrado');
+
+                registros[idx].pagamento = 'Confirmado';
+                registros[idx].comprovante = result.filename;
+                registros[idx].comprovante_nome = file.name;
+                registros[idx].comprovante_analise = null;
+                saveRegistros(registros);
+
+                if (result.filename) {
+                    pollOcrResult(result.filename, confirmacaoRegistroId);
+                }
+
+                status.innerHTML = '<span style="color:#28a745;">&#10003; Pagamento confirmado com sucesso!</span>';
+                btn.innerHTML = '&#10003; Confirmado';
+                setTimeout(() => {
+                    fecharModalConfirmacao();
+                    carregarRegistros();
+                }, 1500);
+            } catch (e) {
+                status.innerHTML = '<span style="color:#dc3545;">&#9888; Erro: ' + e.message + '. Verifique se o servidor est\u00e1 rodando.</span>';
+                btn.disabled = false;
+                btn.innerHTML = '&#128259; Anexar e Confirmar Pagamento';
+            }
+        }
+
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('modal-overlay')) {
+                if (e.target.id === 'modal-excluir') {
+                    fecharModalExcluir();
+                } else {
+                    e.target.classList.remove('active');
+                }
+            }
+        });
+
+        function exportarExcel() {
+            if (typeof XLSX === 'undefined') {
+                mostrarMensagem('Biblioteca XLSX não disponível. Verifique sua conexão com a internet.', 'error');
+                return;
+            }
+            const registros = getRegistros();
+            if (registros.length === 0) {
+                mostrarMensagem('Nenhum registro para exportar.', 'error');
+                return;
+            }
+            const dados = registros.map(r => {
+                const qtd = parseInt(r.quantidade_pulseiras, 10) || 0;
+                const valorTotal = qtd <= 50 ? qtd * 7 : 50 * 7 + (qtd - 50) * 10;
+                let analiseResumo = '';
+                if (r.comprovante_analise) {
+                    try {
+                        const a = JSON.parse(r.comprovante_analise);
+                        analiseResumo = 'Valor: ' + (a.valor_encontrado !== null ? 'R$' + a.valor_encontrado.toFixed(2) : 'N/D') +
+                            ' | PIX: ' + (a.chave_pix_encontrada || 'N/D') +
+                            ' | Data: ' + (a.data_pagamento || 'N/D') +
+                            ' | Hora: ' + (a.hora_pagamento || 'N/D');
+                    } catch {}
+                }
+                return {
+                    ID: r.id,
+                    NOME: r.nome,
+                    TELEFONE: r.telefone,
+                    EMAIL: r.email,
+                    'QUANTIDADE DE PULSEIRAS': r.quantidade_pulseiras || '0',
+                    'VALOR TOTAL': 'R$ ' + valorTotal.toFixed(2),
+                    'NUMEROS DA SORTE': r.numeros_sorte || '',
+                    PAGAMENTO: r.pagamento || 'Pendente',
+                    COMPROVANTE: r.comprovante_nome || (r.comprovante ? 'Anexado' : ''),
+                    'COMPROVANTE ANALISE': analiseResumo
+                };
+            });
+            const ws = XLSX.utils.json_to_sheet(dados);
+            const colunas = ['ID', 'NOME', 'TELEFONE', 'EMAIL', 'QUANTIDADE DE PULSEIRAS', 'VALOR TOTAL', 'NUMEROS DA SORTE', 'PAGAMENTO', 'COMPROVANTE', 'COMPROVANTE ANALISE'];
+            ws['!cols'] = colunas.map((nome, i) => {
+                let maxLen = nome.length;
+                dados.forEach(row => {
+                    const val = Object.values(row)[i];
+                    if (val) maxLen = Math.max(maxLen, String(val).length);
+                });
+                return { wch: maxLen + 3 };
+            });
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Registros');
+            XLSX.writeFile(wb, 'evento_junho.xlsx');
+            mostrarMensagem('Arquivo exportado com sucesso!', 'success');
+        }
+
+        function importarExcel(event) {
+            if (typeof XLSX === 'undefined') {
+                mostrarMensagem('Biblioteca XLSX não disponível. Verifique sua conexão com a internet.', 'error');
+                return;
+            }
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const json = XLSX.utils.sheet_to_json(sheet);
+
+                    const registros = json.map((row, index) => ({
+                        id: String(row.ID || row.id || (index + 1)),
+                        nome: String(row.NOME || row.nome || ''),
+                        telefone: String(row.TELEFONE || row.telefone || ''),
+                        email: String(row.EMAIL || row.email || ''),
+                        quantidade_pulseiras: String(row['QUANTIDADE DE PULSEIRAS'] || row.quantidade_pulseiras || ''),
+                        numeros_sorte: String(row['NUMEROS DA SORTE'] || row.numeros_sorte || ''),
+                        pagamento: String(row.PAGAMENTO || row.pagamento || 'Pendente'),
+                        comprovante: row.COMPROVANTE_ARQUIVO || row.comprovante || '',
+                        comprovante_nome: row.COMPROVANTE || row.comprovante_nome || '',
+                        comprovante_analise: row['COMPROVANTE ANALISE'] || row.comprovante_analise || null
+                    }));
+
+                    if (registros.length === 0) {
+                        mostrarMensagem('Nenhum registro encontrado no arquivo.', 'error');
+                        return;
+                    }
+
+                    // Atualiza o contador de n\u00fameros da sorte para evitar reuso
+                    let maxNum = 0;
+                    for (const r of registros) {
+                        if (r.numeros_sorte) {
+                            for (const n of r.numeros_sorte.split(',')) {
+                                const num = parseInt(n.trim(), 10);
+                                if (!isNaN(num) && num > maxNum) maxNum = num;
+                            }
+                        }
+                    }
+                    const current = getProximoNumero();
+                    if (maxNum >= current) {
+                        setProximoNumero(maxNum + 1);
+                    }
+
+                    saveRegistros(registros);
+                    mostrarMensagem(registros.length + ' registro(s) importado(s) com sucesso!', 'success');
+                    carregarRegistros();
+                    carregarContagem();
+                } catch (err) {
+                    mostrarMensagem('Erro ao importar arquivo: ' + err.message, 'error');
+                }
+            };
+            reader.readAsArrayBuffer(file);
+            event.target.value = '';
+        }
+    </script>
+    <!-- Modal de Análise do Comprovante -->
+    <div class="modal-overlay" id="modal-analise">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-title">&#128270; Análise do Comprovante</h3>
+                <button class="modal-close" onclick="fecharModalAnalise()">&times;</button>
+            </div>
+            <div class="modal-body" id="modal-analise-body">
+                <p style="color:#999;">Carregando...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Confirmação de Pagamento -->
+    <div class="modal-overlay" id="modal-confirmacao">
+        <div class="modal-content" style="max-width:500px;">
+            <div class="modal-header">
+                <h3>&#128259; Confirmar Pagamento</h3>
+                <button class="modal-close" onclick="fecharModalConfirmacao()">&times;</button>
+            </div>
+            <div class="modal-body" id="modal-confirmacao-body">
+                <p style="color:#888;margin-bottom:15px;">Anexe o comprovante de pagamento para confirmar o registro.</p>
+                <div id="confirmacao-info" style="margin-bottom:15px;padding:12px;background:#f8f9fa;border-radius:8px;font-size:14px;"></div>
+                <div class="form-group" style="margin-bottom:15px;">
+                    <label style="display:block;font-size:13px;font-weight:600;color:#555;margin-bottom:6px;">COMPROVANTE DE PAGAMENTO <span style="color:#D01010;">*</span></label>
+                    <input type="file" id="confirmacao-comprovante-input" accept=".pdf,application/pdf" style="width:100%;padding:8px 0;">
+                </div>
+                <div id="confirmacao-status" style="margin-bottom:10px;font-size:13px;font-weight:600;"></div>
+                <button class="btn btn-success" id="btn-confirmar-pagamento" onclick="confirmarPagamento()" style="width:100%;justify-content:center;">&#128259; Anexar e Confirmar Pagamento</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Upload -->
+    <div class="modal-overlay" id="modal-upload">
+        <div class="modal-content" style="max-width:500px;">
+            <div class="modal-header">
+                <h3>&#128259; Anexar Comprovante</h3>
+                <button class="modal-close" onclick="document.getElementById('modal-upload').classList.remove('active')">&times;</button>
+            </div>
+            <form action="/api/upload-form" method="POST" enctype="multipart/form-data">
+                <input type="hidden" name="_token" id="upload-form-token" value="">
+                <input type="hidden" name="id" id="upload-modal-id">
+                <div class="modal-body">
+                    <div style="background:#f8f4f4;border:2px dashed #d4c8c8;border-radius:12px;padding:16px;margin-bottom:15px;text-align:center;">
+                        <div style="font-size:12px;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Chave PIX</div>
+                        <div style="font-size:18px;font-weight:700;color:#333;word-break:break-all;margin-top:4px;">luanborges26@outlook.com</div>
+                    </div>
+                    <div id="upload-modal-info" style="margin-bottom:15px;padding:12px;background:#f8f9fa;border-radius:8px;font-size:14px;"></div>
+                    <div class="form-group" style="margin-bottom:15px;">
+                        <label style="display:block;font-size:13px;font-weight:600;color:#555;margin-bottom:6px;">COMPROVANTE DE PAGAMENTO</label>
+                        <input type="file" id="upload-modal-file" name="file" accept=".pdf,application/pdf" required style="width:100%;padding:8px 0;">
+                    </div>
+                    <div id="upload-modal-status" style="margin-bottom:10px;font-size:13px;font-weight:600;"></div>
+                    <button type="submit" class="btn btn-success" id="upload-modal-btn" style="width:100%;justify-content:center;">&#128259; Enviar Comprovante</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal QR Code -->
+    <div class="modal-overlay" id="qr-modal">
+        <div class="modal-content" style="max-width:420px;">
+            <div class="modal-header">
+                <h3>&#128241; Acessar do Celular</h3>
+                <button class="modal-close" onclick="document.getElementById('qr-modal').classList.remove('active')">&times;</button>
+            </div>
+            <div class="modal-body" id="qr-modal-body" style="text-align:center;padding:30px 20px;">
+                <p style="color:#888;">Carregando...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Confirmar Exclusão -->
+    <div class="modal-overlay" id="modal-excluir">
+        <div class="modal-content" style="max-width:400px;">
+            <div class="modal-header">
+                <h3>&#128465; Confirmar Exclusão</h3>
+                <button class="modal-close" onclick="fecharModalExcluir()">&times;</button>
+            </div>
+            <div class="modal-body" style="text-align:center;padding:20px;">
+                <p style="font-size:16px;color:#555;margin-bottom:8px;">Tem certeza que deseja excluir?</p>
+                <p style="font-size:18px;font-weight:700;color:#333;" id="excluir-nome"></p>
+                <p style="font-size:13px;color:#999;margin-top:12px;">Esta ação não pode ser desfeita.</p>
+                <div style="display:flex;gap:12px;justify-content:center;margin-top:20px;">
+                    <button class="btn btn-outline" onclick="fecharModalExcluir()" style="flex:1;justify-content:center;">&#128281; Cancelar</button>
+                    <button class="btn btn-danger" onclick="confirmarExclusao()" style="flex:1;justify-content:center;">&#128465; Excluir</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

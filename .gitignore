@@ -1,0 +1,8 @@
+database.db
+comprovantes/
+api_token.txt
+ngrok_token.txt
+__pycache__/
+*.pyc
+*.pyo
+evento_junho.xlsx

@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Festival Meu Isaque e Minha Rebeca - Auto Cadastro</title>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #F5F0F0;
+            color: #333;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #D01010 0%, #B00E0E 50%, #8B0A0A 100%);
+            color: white;
+            padding: 20px 40px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+
+        .header img {
+            width: 60px; height: 60px; border-radius: 50%;
+            object-fit: cover; border: 3px solid rgba(255,255,255,0.3); flex-shrink: 0;
+        }
+
+        .header h1 { font-size: 24px; font-weight: 600; letter-spacing: 1px; }
+        .header .subtitle { font-size: 13px; opacity: 0.8; margin-top: 2px; }
+
+        .container { max-width: 800px; margin: 0 auto; padding: 30px; }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; animation: fadeIn 0.3s ease; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ===== Landing ===== */
+        .landing { text-align: center; padding: 20px 0; }
+
+        .landing-banner {
+            background: linear-gradient(135deg, #D01010 0%, #B00E0E 100%);
+            border-radius: 16px; padding: 60px 40px 50px; margin-bottom: 30px;
+            color: white; position: relative; overflow: hidden;
+        }
+
+        .landing-banner img {
+            width: 100px; height: 100px; border-radius: 50%; object-fit: cover;
+            border: 4px solid rgba(255,255,255,0.4); margin-bottom: 15px;
+        }
+
+        .landing-banner h2 { font-size: 32px; margin-bottom: 10px; font-weight: 700; }
+        .landing-banner p { font-size: 16px; opacity: 0.9; max-width: 600px; margin: 0 auto; line-height: 1.6; }
+
+
+
+        .btn-landing {
+            padding: 18px 48px; border: none; border-radius: 12px; font-size: 17px;
+            font-weight: 700; cursor: pointer; transition: all 0.3s;
+            display: inline-flex; align-items: center; gap: 12px; letter-spacing: 0.5px;
+        }
+
+        .btn-landing-primary {
+            background: #D01010; color: white;
+            box-shadow: 0 4px 15px rgba(208,16,16,0.3);
+        }
+
+        .btn-landing-primary:hover {
+            background: #B00E0E; transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(208,16,16,0.4);
+        }
+
+        .info-section {
+            display: grid; grid-template-columns: 1fr 1fr 1fr;
+            gap: 20px; margin-top: 20px;
+        }
+
+        .info-card {
+            background: white; border-radius: 12px; padding: 25px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06); border: 1px solid #f0e8e8; text-align: center;
+        }
+
+        .info-card .info-icon { font-size: 32px; margin-bottom: 10px; }
+        .info-card h4 { font-size: 16px; color: #D01010; margin-bottom: 6px; }
+        .info-card p { font-size: 14px; color: #888; line-height: 1.5; }
+
+        /* ===== Cadastro ===== */
+        .page-header { margin-bottom: 25px; }
+        .page-header h2 { font-size: 22px; color: #D01010; font-weight: 600; }
+
+        .card {
+            background: white; border-radius: 12px; padding: 25px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06); border: 1px solid #f0e8e8;
+        }
+
+        .form-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
+        }
+
+        .form-group { margin-bottom: 5px; }
+        .form-group.full-width { grid-column: 1 / -1; }
+
+        .form-group label {
+            display: block; font-size: 13px; font-weight: 600;
+            color: #555; margin-bottom: 6px; letter-spacing: 0.3px;
+        }
+
+        .form-group label .required { color: #D01010; }
+
+        .form-control {
+            width: 100%; padding: 11px 14px; border: 2px solid #e0d8d8;
+            border-radius: 8px; font-size: 14px; transition: border-color 0.3s;
+            outline: none; background: #FAF8F8;
+        }
+
+        .form-control:focus { border-color: #D01010; background: white; }
+
+        /* ===== PIX Card ===== */
+        .pix-card {
+            background: #F0F8F0; border: 2px solid #28a745; border-radius: 12px;
+            padding: 20px 25px; display: flex; align-items: center;
+            gap: 15px; margin: 20px 0;
+        }
+
+        .pix-card .pix-icon { font-size: 32px; }
+        .pix-card .pix-label { font-size: 13px; font-weight: 600; color: #555; margin-bottom: 2px; }
+        .pix-card .pix-chave { font-size: 18px; font-weight: 700; color: #333; }
+        .pix-card .pix-flex { flex: 1; }
+
+        .btn {
+            padding: 10px 24px; border: none; border-radius: 8px;
+            font-size: 14px; font-weight: 600; cursor: pointer;
+            transition: all 0.3s; display: inline-flex; align-items: center; gap: 8px;
+        }
+
+        .btn-success { background: #28a745; color: white; }
+        .btn-success:hover { background: #218838; transform: translateY(-1px); }
+        .btn-success:disabled { background: #94d3a2; cursor: not-allowed; transform: none; }
+        .btn-outline-success {
+            background: transparent; border: 2px solid #28a745; color: #28a745;
+        }
+        .btn-outline-success:hover { background: #28a745; color: white; }
+        .btn-outline-success.active { background: #28a745; color: white; }
+
+        .btn-primary { background: #D01010; color: white; }
+        .btn-primary:hover { background: #B00E0E; transform: translateY(-1px); }
+        .btn-primary:disabled { background: #e88888; cursor: not-allowed; transform: none; }
+        .btn-sm { padding: 6px 14px; font-size: 12px; }
+
+        .btn-outline {
+            background: transparent; border: 2px solid #D01010; color: #D01010;
+        }
+        .btn-outline:hover { background: #D01010; color: white; }
+
+        .message {
+            padding: 15px 20px; border-radius: 8px; margin-bottom: 20px;
+            display: none; font-weight: 500;
+        }
+
+        .message.success { display: block; background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .message.error { display: block; background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .message.info { display: block; background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+
+        .form-buttons { display: flex; gap: 12px; margin-top: 25px; padding-top: 20px; border-top: 1px solid #f0e8e8; }
+
+        #valor-pulseiras-display {
+            margin-top: 8px; font-size: 15px; font-weight: 700; color: #D01010;
+        }
+
+        .file-input-wrapper {
+            display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+        }
+
+        .file-input-wrapper input[type="file"] {
+            flex: 1; padding: 8px 0; font-size: 14px;
+        }
+
+        @media (max-width: 768px) {
+            .header { padding: 15px 20px; }
+            .header h1 { font-size: 18px; }
+            .container { padding: 15px; }
+            .form-grid { grid-template-columns: 1fr; }
+            .landing-banner { padding: 40px 20px; }
+            .landing-banner h2 { font-size: 24px; }
+            .btn-landing { padding: 14px 32px; font-size: 15px; }
+            .info-section { grid-template-columns: 1fr; }
+            .pix-card { flex-direction: column; text-align: center; }
+            .pix-card .btn { width: 100%; justify-content: center; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <img src="../imagem_evento.jpeg" alt="Logo">
+        <div>
+            <h1>Festival Meu Isaque e Minha Rebeca</h1>
+            <div class="subtitle">Auto Cadastro</div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div id="message-container"></div>
+
+        <!-- Landing -->
+        <div id="tab-inicio" class="tab-content active">
+            <div class="landing">
+                <div class="landing-banner">
+                    <img src="../imagem_evento.jpeg" alt="Logo">
+                    <h2>Festival Meu Isaque e Minha Rebeca</h2>
+                    <p>
+                        Venha participar do nosso festival!
+                        Uma celebração especial com música, comidas típicas e muita alegria.
+                        Garanta já sua pulseira e concorra a prêmios incríveis com os números da sorte!
+                    </p>
+                </div>
+
+                <div style="margin-top:10px;">
+                    <button class="btn-landing btn-landing-primary" onclick="irParaCadastro()">
+                        &#127881; Quero Participar
+                    </button>
+                </div>
+
+                <!-- QR Code Compartilhar -->
+                <div style="margin-top:25px;padding:20px;background:white;border-radius:12px;border:1px solid #f0e8e8;display:inline-block;box-shadow:0 2px 12px rgba(0,0,0,0.06);">
+                    <div style="font-size:13px;color:#888;margin-bottom:10px;">&#128228; Compartilhe com os amigos</div>
+                    <div style="text-align:center;">
+                        <div id="qr-compartilhar-btn" onclick="expandirQR()" style="display:inline-flex;align-items:center;gap:8px;padding:12px 28px;background:#D01010;color:#fff;border-radius:50px;font-size:16px;font-weight:600;cursor:pointer;box-shadow:0 2px 12px rgba(208,16,16,0.3);margin-bottom:10px;">
+                            &#128228; Compartilhar
+                        </div>
+                        <div style="font-size:12px;color:#999;">Toque para ver o QR Code e copiar o link</div>
+                    </div>
+                </div>
+
+                <div id="qr-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;justify-content:center;align-items:center;" onclick="fecharQR()">
+                    <div style="background:#fff;border-radius:16px;padding:25px;text-align:center;max-width:90vw;max-height:90vh;box-shadow:0 8px 40px rgba(0,0,0,0.3);" onclick="event.stopPropagation()">
+                        <div style="font-size:16px;font-weight:700;color:#D01010;margin-bottom:15px;">Compartilhe o festival!</div>
+                        <img id="qr-modal-img" src="" alt="QR Code" style="width:250px;height:250px;border-radius:8px;">
+                        <div style="margin-top:12px;font-size:13px;color:#666;word-break:break-all;" id="qr-modal-url"></div>
+                        <button style="margin-top:12px;padding:10px 20px;border:none;border-radius:8px;background:#D01010;color:#fff;font-size:14px;font-weight:600;cursor:pointer;" onclick="copiarLinkAutoCadastro()">&#128203; Copiar Link</button>
+                        <button style="margin-top:8px;padding:8px 25px;border:1px solid #ccc;border-radius:8px;background:#fff;color:#666;font-size:13px;cursor:pointer;" onclick="fecharQR()">Fechar</button>
+                    </div>
+                </div>
+
+                <div class="info-section" style="margin-top:30px;">
+                    <div class="info-card">
+                        <div class="info-icon">&#127926;</div>
+                        <h4>Música ao Vivo</h4>
+                        <p>Apresentações musicais com os melhores artistas da região</p>
+                    </div>
+                    <div class="info-card">
+                        <div class="info-icon">&#127869;</div>
+                        <h4>Comidas Típicas</h4>
+                        <p>Comidas típicas e bebidas variadas</p>
+                    </div>
+                    <div class="info-card">
+                        <div class="info-icon">&#127922;</div>
+                        <h4>Sorteios</h4>
+                        <p>Participe dos sorteios com seus números da sorte e concorra a prêmios</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cadastro -->
+        <div id="tab-cadastro" class="tab-content">
+            <div class="page-header">
+                <h2>Faça seu Cadastro</h2>
+                <p style="color:#888;font-size:14px;margin-top:4px;">Preencha os dados e faça o pagamento via PIX para se cadastrar</p>
+            </div>
+
+            <div class="card">
+                <form id="cadastro-form" onsubmit="return salvarRegistro(event)">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>NOME <span class="required">*</span></label>
+                            <input type="text" class="form-control" id="nome" placeholder="Nome completo" required>
+                        </div>
+                        <div class="form-group">
+                            <label>TELEFONE <span class="required">*</span></label>
+                            <input type="text" class="form-control" id="telefone" placeholder="(11) 99999-9999" required>
+                        </div>
+                        <div class="form-group">
+                            <label>EMAIL <span class="required">*</span></label>
+                            <input type="email" class="form-control" id="email" placeholder="email@exemplo.com" required>
+                        </div>
+                        <div class="form-group">
+                            <label>QUANTIDADE DE PULSEIRAS</label>
+                            <input type="number" class="form-control" id="quantidade_pulseiras" placeholder="Quantidade" min="0" oninput="atualizarValorPulseiras()">
+                            <div id="valor-pulseiras-display"></div>
+                        </div>
+                        <div class="form-group full-width">
+                            <label>NÚMEROS DA SORTE (gerados automaticamente)</label>
+                            <div id="numeros-automaticos" style="padding:10px 0;min-height:20px;font-size:14px;color:#888;">
+                                Defina a quantidade de pulseiras para gerar os números
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- PIX -->
+                    <div class="pix-card">
+                        <div class="pix-icon">&#128179;</div>
+                        <div class="pix-flex">
+                            <div class="pix-label">CHAVE PIX (faça o pagamento e envie o comprovante para o organizador)</div>
+                            <div class="pix-chave">luanborges26@outlook.com</div>
+                        </div>
+                        <button type="button" class="btn btn-success" onclick="copiarPix()">&#128203; Copiar PIX</button>
+                    </div>
+
+                    <div class="form-buttons">
+                        <button type="submit" class="btn btn-primary" id="btn-cadastrar">&#10003; Cadastrar</button>
+                        <button type="button" class="btn btn-outline" onclick="voltarInicio()">&#128281; Voltar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const STORAGE_KEY = 'evento_junho_registros';
+        const PROXIMO_NUMERO_KEY = 'evento_junho_proximo_numero';
+        const MAX_NUMEROS = 300;
+
+        function getRegistros() {
+            try {
+                const data = localStorage.getItem(STORAGE_KEY);
+                return data ? JSON.parse(data) : [];
+            } catch { return []; }
+        }
+
+        function getIdsExcluidos() {
+            try { return JSON.parse(localStorage.getItem('evento_junho_excluidos') || '[]'); }
+            catch { return []; }
+        }
+
+        function setIdsExcluidos(ids) {
+            localStorage.setItem('evento_junho_excluidos', JSON.stringify(ids));
+        }
+
+        function generateUUID() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                var r = Math.random() * 16 | 0;
+                return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+            });
+        }
+
+        function saveRegistros(data) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+            try {
+                fetch('/api/sync-registros', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (window.API_TOKEN || '') },
+                    body: JSON.stringify({
+                        registros: data,
+                        excluidos: getIdsExcluidos()
+                    })
+                }).then(function(resp) {
+                    if (!resp.ok) mostrarMensagem('Erro ao sincronizar com servidor (HTTP ' + resp.status + '). Recarregue a p\u00e1gina.', 'error');
+                }).catch(function() {
+                    mostrarMensagem('Erro de rede ao sincronizar. Dados salvos localmente.', 'error');
+                });
+            } catch(e) {
+                mostrarMensagem('Erro ao salvar: ' + e.message, 'error');
+            }
+        }
+
+        function resequenceRegistros(registros) {
+            var proximoNumero = 1;
+            for (var i = 0; i < registros.length; i++) {
+                registros[i].id = String(i + 1);
+                if (!registros[i]._uuid) registros[i]._uuid = generateUUID();
+                var qtd = parseInt(registros[i].quantidade_pulseiras, 10) || 0;
+                var nums = [];
+                for (var j = 0; j < qtd; j++) {
+                    nums.push(proximoNumero);
+                    proximoNumero++;
+                }
+                registros[i].numeros_sorte = nums.join(',');
+            }
+            setProximoNumero(proximoNumero);
+            return registros;
+        }
+
+        function getProximoNumero() {
+            var val = localStorage.getItem(PROXIMO_NUMERO_KEY);
+            var num = parseInt(val, 10);
+            return !isNaN(num) && num > 0 ? num : 1;
+        }
+
+        function setProximoNumero(val) {
+            localStorage.setItem(PROXIMO_NUMERO_KEY, String(val));
+        }
+
+        function recalcularProximoNumero() {
+            var registros = getRegistros();
+            var maxNum = 0;
+            for (var i = 0; i < registros.length; i++) {
+                var r = registros[i];
+                if (r.numeros_sorte) {
+                    var parts = r.numeros_sorte.split(',');
+                    for (var j = 0; j < parts.length; j++) {
+                        var num = parseInt(parts[j].trim(), 10);
+                        if (!isNaN(num) && num > maxNum) maxNum = num;
+                    }
+                }
+            }
+            var correto = maxNum + 1;
+            var atual = getProximoNumero();
+            if (atual !== correto) {
+                setProximoNumero(correto);
+            }
+        }
+
+        function numerosDisponiveis(qtd) {
+            var inicio = getProximoNumero();
+            var fim = inicio + qtd - 1;
+            if (fim > MAX_NUMEROS) return null;
+            var nums = [];
+            for (var i = inicio; i <= fim; i++) nums.push(i);
+            return nums;
+        }
+
+        function mostrarMensagem(texto, tipo) {
+            var container = document.getElementById('message-container');
+            if (!container) return;
+            container.innerHTML = '<div class="message ' + tipo + '">' + texto + '</div>';
+            setTimeout(function() {
+                var msg = container.querySelector('.message');
+                if (msg) msg.style.display = 'none';
+            }, 8000);
+        }
+
+        function getBaseUrl() {
+            return window.PUBLIC_URL || (window.location.protocol + '//' + window.location.host);
+        }
+
+        function atualizarQRCode() {
+            var base = getBaseUrl();
+            var url = base + '/auto-cadastro';
+            var el = document.getElementById('autocadastro-link-display');
+            if (el) el.textContent = url;
+        }
+
+        function expandirQR() {
+            var base = getBaseUrl();
+            var url = base + '/auto-cadastro';
+            document.getElementById('qr-modal-img').src = '/api/qr-code?size=25&data=' + encodeURIComponent(url);
+            document.getElementById('qr-modal-url').textContent = url;
+            document.getElementById('qr-modal').style.display = 'flex';
+        }
+
+        function fecharQR() {
+            document.getElementById('qr-modal').style.display = 'none';
+        }
+
+        function copiarLinkAutoCadastro() {
+            var base = getBaseUrl();
+            var url = base + '/auto-cadastro';
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(url).then(function() {
+                    mostrarMensagem('Link copiado! Compartilhe com os amigos.', 'success');
+                }).catch(function() {
+                    mostrarMensagem('Link: ' + url, 'info');
+                });
+            } else {
+                mostrarMensagem('Link: ' + url, 'info');
+            }
+        }
+
+        function irParaCadastro() {
+            document.getElementById('tab-inicio').classList.remove('active');
+            document.getElementById('tab-cadastro').classList.add('active');
+        }
+
+        function voltarInicio() {
+            limparFormulario();
+            document.getElementById('tab-cadastro').classList.remove('active');
+            document.getElementById('tab-inicio').classList.add('active');
+        }
+
+        function copiarPix() {
+            navigator.clipboard.writeText('luanborges26@outlook.com').then(function() {
+                mostrarMensagem('Chave PIX copiada para a \u00e1rea de transfer\u00eancia!', 'success');
+            }).catch(function() {
+                mostrarMensagem('Erro ao copiar. Copie manualmente: luanborges26@outlook.com', 'info');
+            });
+        }
+
+        function atualizarValorPulseiras() {
+            const qtd = parseInt(document.getElementById('quantidade_pulseiras').value, 10) || 0;
+            const display = document.getElementById('valor-pulseiras-display');
+            const numsDisplay = document.getElementById('numeros-automaticos');
+            if (qtd <= 0) {
+                display.style.display = 'none';
+                numsDisplay.innerHTML = 'Defina a quantidade de pulseiras para gerar os números';
+                numsDisplay.style.color = '#888';
+                return;
+            }
+            const valorTotal = qtd <= 50 ? qtd * 7 : 50 * 7 + (qtd - 50) * 10;
+            display.style.display = 'block';
+            display.textContent = 'Valor total: R$ ' + valorTotal.toFixed(2);
+
+            const nums = numerosDisponiveis(qtd);
+            if (!nums) {
+                numsDisplay.innerHTML = '<span style="color:#dc3545;font-weight:600;">Números esgotados! Apenas ' + (MAX_NUMEROS - getProximoNumero() + 1) + ' números disponíveis.</span>';
+                numsDisplay.style.color = '#dc3545';
+            } else {
+                numsDisplay.innerHTML = nums.map(n => '<span class="badge-numeros">' + n + '</span>').join(' ');
+                numsDisplay.style.color = '#333';
+            }
+        }
+
+        window.onerror = function(msg, url, line) {
+            var c = document.getElementById('message-container');
+            if (c) c.innerHTML = '<div class="message error">Erro JS: ' + msg + ' (linha ' + line + ')</div>';
+        };
+
+        document.addEventListener('DOMContentLoaded', function() {
+            recalcularProximoNumero();
+            carregarDoServidor();
+            atualizarQRCode();
+        });
+
+        function carregarDoServidor() {
+            return fetch('/api/registros', { cache: 'no-store', headers: { 'Authorization': 'Bearer ' + (window.API_TOKEN || '') } })
+                .then(function(resp) {
+                    if (!resp.ok) { console.warn('GET /api/registros falhou:', resp.status); return; }
+                    return resp.json().then(function(body) {
+                        var serverRegistros = body.registros || body;
+
+                        if (Array.isArray(serverRegistros)) {
+                            // Merge por UUID: preserva registros locais que ainda não foram pro servidor
+                            var serverUuids = new Set(serverRegistros.map(function(r) { return r._uuid; }));
+                            var serverExcluidos = new Set(body.excluidos || []);
+                            var merged = serverRegistros.slice();
+                            var localData = getRegistros();
+                            for (var i = 0; i < localData.length; i++) {
+                                var r = localData[i];
+                                if (r._uuid && !serverUuids.has(r._uuid) && !serverExcluidos.has(r._uuid) && !serverExcluidos.has(String(r.id))) {
+                                    merged.push(r);
+                                }
+                            }
+
+                            merged = resequenceRegistros(merged);
+                            localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+                            fetch('/api/sync-registros', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (window.API_TOKEN || '') },
+                                body: JSON.stringify({ registros: merged, excluidos: getIdsExcluidos() })
+                            }).catch(function() {});
+                        }
+                    });
+                })
+                .catch(function() {});
+        }
+
+        function salvarRegistro(event) {
+            event.preventDefault();
+
+            const dados = {
+                nome: document.getElementById('nome').value.trim(),
+                telefone: document.getElementById('telefone').value.trim(),
+                email: document.getElementById('email').value.trim(),
+                quantidade_pulseiras: document.getElementById('quantidade_pulseiras').value.trim()
+            };
+
+            if (!dados.nome || !dados.telefone || !dados.email) {
+                mostrarMensagem('Preencha todos os campos obrigat\u00f3rios (Nome, Telefone e Email).', 'error');
+                return;
+            }
+
+            let registros = getRegistros();
+            const record = { pagamento: 'Pendente', ...dados };
+            registros.push(record);
+            registros = resequenceRegistros(registros);
+            saveRegistros(registros);
+
+            const newId = registros[registros.length - 1].id;
+            mostrarMensagem('Cadastro realizado com sucesso! Seu n\u00famero \u00e9 #' + newId + '. Aguarde a confirma\u00e7\u00e3o do organizador.', 'success');
+            limparFormulario();
+
+            setTimeout(() => {
+                voltarInicio();
+            }, 2000);
+        }
+
+        function limparFormulario() {
+            document.getElementById('nome').value = '';
+            document.getElementById('telefone').value = '';
+            document.getElementById('email').value = '';
+            document.getElementById('quantidade_pulseiras').value = '';
+            document.getElementById('valor-pulseiras-display').style.display = 'none';
+            document.getElementById('numeros-automaticos').innerHTML = 'Defina a quantidade de pulseiras para gerar os n\u00fameros';
+            document.getElementById('numeros-automaticos').style.color = '#888';
+        }
+    </script>
+</body>
+</html>
