@@ -135,6 +135,21 @@
         .pix-card .pix-chave { font-size: 18px; font-weight: 700; color: #333; }
         .pix-card .pix-flex { flex: 1; }
 
+        .whatsapp-contact {
+            display: flex; align-items: center; gap: 12px;
+            margin-top: 12px; padding: 10px 14px;
+            background: #e8f5e9; border-radius: 10px;
+            border: 1px solid #c8e6c9;
+        }
+        .whatsapp-icon { font-size: 26px; }
+        .whatsapp-text { flex: 1; }
+        .whatsapp-label { font-size: 12px; color: #2e7d32; font-weight: 500; }
+        .whatsapp-link {
+            font-size: 17px; font-weight: 700; color: #1b5e20;
+            text-decoration: none;
+        }
+        .whatsapp-link:hover { text-decoration: underline; color: #0d3b0e; }
+
         .btn {
             padding: 10px 24px; border: none; border-radius: 8px;
             font-size: 14px; font-weight: 600; cursor: pointer;
@@ -313,9 +328,12 @@
                             <div class="pix-chave" id="pix-chave-display">luanborges26@outlook.com</div>
                         </div>
                         <button type="button" class="btn btn-success" onclick="copiarPix()">&#128203; Copiar PIX</button>
-                        <div style="margin-top: 8px; font-size: 0.9rem; color: #555;">
-                            Após o pagamento, envie o comprovante para
-                            <a href="https://wa.me/5594981740879" target="_blank" style="font-weight:600;color:#25D366;">(94) 98174-0879</a>
+                        <div class="whatsapp-contact">
+                            <div class="whatsapp-icon">&#128242;</div>
+                            <div class="whatsapp-text">
+                                <div class="whatsapp-label">Envie o comprovante para</div>
+                                <a href="https://wa.me/5594981740879" target="_blank" class="whatsapp-link">(94) 98174-0879</a>
+                            </div>
                         </div>
                     </div>
 
