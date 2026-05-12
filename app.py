@@ -629,70 +629,10 @@ def gerar_qrcode():
     return send_file(buf, mimetype='image/png')
 
 
-NGROK_TOKEN_FILE = os.path.join(BASE_DIR, 'ngrok_token.txt')
-
-SUBDOMINIO_NGROK = 'festival-isaeque-rebeca'
-
-
-def iniciar_ngrok():
-    try:
-        from pyngrok import ngrok, conf
-    except ImportError:
-        print('  [ngrok] Instalando pyngrok...')
-        os.system('pip install pyngrok -q')
-        try:
-            from pyngrok import ngrok, conf
-        except:
-            print('  [ngrok] Falha ao instalar pyngrok. Instale manualmente: pip install pyngrok')
-            return None
-
-    if os.path.exists(NGROK_TOKEN_FILE):
-        with open(NGROK_TOKEN_FILE, 'r') as f:
-            token = f.read().strip()
-            if token:
-                try:
-                    conf.get_default().auth_token = token
-                except:
-                    pass
-
-    def conectar_ngrok():
-        try:
-            return ngrok.connect(5000, domain=f'{SUBDOMINIO_NGROK}.ngrok-free.app')
-        except:
-            try:
-                return ngrok.connect(5000, subdomain=SUBDOMINIO_NGROK)
-            except:
-                return ngrok.connect(5000)
-
-    try:
-        tunnel = conectar_ngrok()
-        return tunnel.public_url
-    except Exception as e:
-        if 'auth' in str(e).lower():
-            print('\n  [ngrok] Token nao configurado.')
-            print('  [ngrok] Crie conta: https://dashboard.ngrok.com/signup')
-            print('  [ngrok] Pegue o token: https://dashboard.ngrok.com/get-started/your-authtoken\n')
-            token = input('  Cole seu token ngrok (apenas 1 vez): ').strip()
-            if token:
-                try:
-                    conf.get_default().auth_token = token
-                    with open(NGROK_TOKEN_FILE, 'w') as f:
-                        f.write(token)
-                    print('  [ngrok] Token salvo em ngrok_token.txt')
-                    tunnel = conectar_ngrok()
-                    return tunnel.public_url
-                except Exception as e2:
-                    print('  [ngrok] Erro ao configurar token:', e2)
-        else:
-            print('  [ngrok] Erro:', e)
-        return None
-
-
 init_db()
 backup_db()
 
 if __name__ == '__main__':
-    use_online = '--online' in sys.argv
     use_prod = '--prod' in sys.argv
 
     hostname = socket.gethostname()
@@ -704,17 +644,6 @@ if __name__ == '__main__':
     print(f'  Auto-Cad.: http://localhost:5000/auto-cadastro')
     print(f'  Rede:      http://{local_ip}:5000')
     print(f'  Auto-Cad. tambem: http://{local_ip}:5000/auto-cadastro')
-
-    public_url = None
-    if use_online:
-        print('  [ngrok] Ativando túnel público...')
-        public_url = iniciar_ngrok()
-        if public_url:
-            print(f'  PUBLICO:   {public_url}')
-            print(f'  PUBLICO:   {public_url}/auto-cadastro')
-            os.environ['PUBLIC_URL'] = public_url
-        else:
-            print('  [ngrok] Falha ao criar túnel. Usando apenas rede local.')
     print('=' * 50)
 
     if use_prod:
