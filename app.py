@@ -211,23 +211,32 @@ def check_csrf():
     return token == expected
 
 
+def get_current_role():
+    role = session.get('role')
+    if role:
+        return role
+    auth = request.headers.get('Authorization', '')
+    token = auth[7:] if auth.startswith('Bearer ') else ''
+    if not token:
+        token = request.form.get('_token', '')
+    if token == API_TOKEN:
+        return 'admin'
+    if token == AUTO_CADASTRO_TOKEN:
+        return 'auto_cadastro'
+    return None
+
+
 def require_role(admin_only=False):
     if not check_rate_limit():
         return False
 
-    role = session.get('role')
+    role = get_current_role()
     if role:
         if admin_only:
             return role == 'admin'
         return True
 
-    auth = request.headers.get('Authorization', '')
-    token = auth[7:] if auth.startswith('Bearer ') else ''
-    if not token:
-        token = request.form.get('_token', '')
-    if admin_only:
-        return token == API_TOKEN
-    return token in (API_TOKEN, AUTO_CADASTRO_TOKEN)
+    return False
 
 
 def allowed_file(filename):
@@ -493,7 +502,8 @@ def api_sync_registros():
         if not isinstance(regs, list) or not isinstance(excs, list):
             return jsonify({'success': False, 'error': 'Formato inválido'}), 400
 
-        is_auto = session.get('role') == 'auto_cadastro'
+        origem_role = get_current_role()
+        is_auto = origem_role == 'auto_cadastro'
         if is_auto:
             for item in regs:
                 item['pagamento'] = 'Pendente'
@@ -523,6 +533,8 @@ def _on_ocr_complete(future, filename):
 
 @app.route('/api/ocr/<filename>')
 def get_ocr_result(filename):
+    if not require_role():
+        return jsonify({'status': 'error', 'error': 'Não autorizado'}), 401
     with ocr_results_lock:
         result = ocr_results.get(filename)
     if result is None:
@@ -594,6 +606,8 @@ def servir_imagem():
 
 @app.route('/api/qr-code')
 def gerar_qrcode():
+    if not require_role():
+        return 'Não autorizado', 401
     import io
     import qrcode
     from PIL import Image as PILImage
