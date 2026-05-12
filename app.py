@@ -300,7 +300,12 @@ def _render_template(template_name, is_admin=False):
         f'</script>'
     )
     html = html.replace('</head>', script + '</head>')
-    return html, 200, {'Content-Type': 'text/html; charset=utf-8'}
+    return html, 200, {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+    }
 
 
 @app.route('/')
