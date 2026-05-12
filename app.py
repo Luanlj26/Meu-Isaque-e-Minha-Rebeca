@@ -8,8 +8,10 @@ import sqlite3
 import secrets
 import threading
 import logging
+import time
+from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
-from flask import Flask, jsonify, request, send_file
+from flask import Flask, jsonify, request, send_file, session
 from PIL import Image
 import fitz
 
@@ -29,8 +31,18 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATES_DIR = os.path.join(BASE_DIR, 'templates')
 COMPROVANTES_DIR = os.path.join(BASE_DIR, 'comprovantes')
 DATABASE = os.path.join(BASE_DIR, 'database.db')
+BACKUP_DIR = os.path.join(BASE_DIR, 'backups')
+LOG_DIR = os.path.join(BASE_DIR, 'logs')
+AUDIT_LOG = os.path.join(LOG_DIR, 'auditoria.jsonl')
 
 app = Flask(__name__)
+app.secret_key = secrets.token_urlsafe(32)
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+    SESSION_COOKIE_SECURE=False,
+    PERMANENT_SESSION_LIFETIME=3600,
+)
 os.makedirs(COMPROVANTES_DIR, exist_ok=True)
 
 API_TOKEN_FILE = os.path.join(BASE_DIR, 'api_token.txt')
@@ -51,6 +63,54 @@ AUTO_CADASTRO_TOKEN = secrets.token_urlsafe(16)
 
 PRECO_ATE_50 = 7
 PRECO_ACIMA_50 = 10
+
+os.makedirs(BACKUP_DIR, exist_ok=True)
+os.makedirs(LOG_DIR, exist_ok=True)
+AUDIT_LOG_LOCK = threading.Lock()
+
+
+def audit_log(acao, detalhe=''):
+    try:
+        ip = request.remote_addr or 'desconhecido'
+        role = session.get('role', 'token')
+        entry = {
+            'ts': time.strftime('%Y-%m-%dT%H:%M:%S'),
+            'ip': ip,
+            'role': role,
+            'acao': acao,
+            'detalhe': detalhe
+        }
+        with AUDIT_LOG_LOCK:
+            with open(AUDIT_LOG, 'a', encoding='utf-8') as f:
+                f.write(json.dumps(entry, ensure_ascii=False) + '\n')
+    except Exception as e:
+        log.warning('Erro ao escrever log de auditoria: %s', e)
+
+
+def backup_db():
+    try:
+        ts = time.strftime('%Y-%m-%d_%H-%M-%S')
+        path = os.path.join(BACKUP_DIR, f'db-{ts}.db')
+        conn = get_db()
+        conn.execute('PRAGMA wal_checkpoint(TRUNCATE)')
+        conn.close()
+        with open(DATABASE, 'rb') as src:
+            with open(path, 'wb') as dst:
+                dst.write(src.read())
+        log.info('Backup criado: %s', path)
+        keep = 50
+        backups = sorted(
+            [os.path.join(BACKUP_DIR, f) for f in os.listdir(BACKUP_DIR) if f.startswith('db-')],
+            key=os.path.getmtime, reverse=True
+        )
+        for old in backups[keep:]:
+            try:
+                os.remove(old)
+            except OSError:
+                pass
+    except Exception as e:
+        log.warning('Erro ao fazer backup: %s', e)
+
 
 ocr_executor = ThreadPoolExecutor(max_workers=4)
 ocr_results = {}
@@ -92,8 +152,24 @@ def init_db():
 
 @app.after_request
 def add_cors_headers(response):
-    response.headers['Access-Control-Allow-Origin'] = '*'
-    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+    origin = request.headers.get('Origin', '')
+    public_url = os.environ.get('PUBLIC_URL', '').rstrip('/')
+    allowed = {'null'}
+    allowed.add('http://localhost:5000')
+    allowed.add('http://127.0.0.1:5000')
+    try:
+        hostname = socket.gethostname()
+        local_ip = socket.gethostbyname(hostname)
+        allowed.add(f'http://{local_ip}:5000')
+    except:
+        pass
+    if public_url:
+        allowed.add(public_url)
+    if origin in allowed:
+        response.headers['Access-Control-Allow-Origin'] = origin
+    else:
+        response.headers['Access-Control-Allow-Origin'] = 'null'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-CSRF-Token'
     response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
     response.headers['Access-Control-Max-Age'] = '86400'
     return response
@@ -112,7 +188,39 @@ ALLOWED_EXTENSIONS = {'pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp'}
 PIX_CORRETO = 'luanborges26@outlook.com'
 
 
-def require_token(admin_only=False):
+_request_times = defaultdict(list)
+
+def check_rate_limit(max_requests=120, window_seconds=60):
+    ip = request.remote_addr or 'unknown'
+    now = time.time()
+    cutoff = now - window_seconds
+    _request_times[ip] = [t for t in _request_times[ip] if t > cutoff]
+    if len(_request_times[ip]) >= max_requests:
+        return False
+    _request_times[ip].append(now)
+    return True
+
+
+def check_csrf():
+    if request.method in ('GET', 'HEAD', 'OPTIONS'):
+        return True
+    token = request.headers.get('X-CSRF-Token', '') or request.form.get('_csrf_token', '')
+    expected = session.get('csrf_token', '')
+    if not token or not expected:
+        return False
+    return token == expected
+
+
+def require_role(admin_only=False):
+    if not check_rate_limit():
+        return False
+
+    role = session.get('role')
+    if role:
+        if admin_only:
+            return role == 'admin'
+        return True
+
     auth = request.headers.get('Authorization', '')
     token = auth[7:] if auth.startswith('Bearer ') else ''
     if not token:
@@ -300,16 +408,17 @@ def contar_registros():
 def _render_template(template_name, is_admin=False):
     public_url = os.environ.get('PUBLIC_URL', '')
     html = open(os.path.join(TEMPLATES_DIR, template_name), 'r', encoding='utf-8').read()
-    token = API_TOKEN if is_admin else AUTO_CADASTRO_TOKEN
+    csrf_token = session.get('csrf_token', '')
     qtd_atingida = contar_registros()
     script = (
         f'<script>'
         f'window.PUBLIC_URL="{public_url}";'
-        f'window.API_TOKEN="{token}";'
+        f'window.CSRF_TOKEN="{csrf_token}";'
         f'window.PIX_KEY="{PIX_CORRETO}";'
         f'window.PRECO_ATE_50={PRECO_ATE_50};'
         f'window.PRECO_ACIMA_50={PRECO_ACIMA_50};'
         f'window.QTD_ATINGIDA={qtd_atingida};'
+        f'window.IS_ADMIN={"true" if is_admin else "false"};'
         f'</script>'
     )
     html = html.replace('</head>', script + '</head>')
@@ -323,17 +432,24 @@ def _render_template(template_name, is_admin=False):
 
 @app.route('/')
 def index():
+    session['role'] = 'admin'
+    session['csrf_token'] = secrets.token_urlsafe(32)
+    session.permanent = True
     return _render_template('index.html', is_admin=True)
 
 
 @app.route('/auto-cadastro')
 def auto_cadastro():
+    if session.get('role') != 'admin':
+        session['role'] = 'auto_cadastro'
+    session['csrf_token'] = secrets.token_urlsafe(32)
+    session.permanent = True
     return _render_template('auto-cadastro.html')
 
 
 @app.route('/api/registros', methods=['GET'])
 def api_get_registros():
-    if not require_token(admin_only=True):
+    if not require_role(admin_only=True):
         return jsonify({'success': False, 'error': 'Não autorizado'}), 401
     data = {
         'registros': ler_registros(),
@@ -347,8 +463,11 @@ def api_get_registros():
 
 @app.route('/api/sync-registros', methods=['POST', 'OPTIONS'])
 def api_sync_registros():
-    if not require_token():
+    if not require_role():
         return jsonify({'success': False, 'error': 'Não autorizado'}), 401
+    if session.get('role'):
+        if not check_csrf():
+            return jsonify({'success': False, 'error': 'CSRF inválido'}), 403
     try:
         ct = request.content_type or ''
         if 'application/json' in ct:
@@ -374,7 +493,15 @@ def api_sync_registros():
         if not isinstance(regs, list) or not isinstance(excs, list):
             return jsonify({'success': False, 'error': 'Formato inválido'}), 400
 
+        is_auto = session.get('role') == 'auto_cadastro'
+        if is_auto:
+            for item in regs:
+                item['pagamento'] = 'Pendente'
+
         salvar_tudo(regs, excs)
+
+        audit_log('sync', f'{len(regs)} registros, {len(excs)} excluidos, auto={is_auto}')
+        backup_db()
 
         return jsonify({'success': True})
     except Exception as e:
@@ -405,8 +532,11 @@ def get_ocr_result(filename):
 
 @app.route('/api/upload', methods=['POST'])
 def upload_comprovante():
-    if not require_token(admin_only=True):
+    if not require_role(admin_only=True):
         return jsonify({'success': False, 'error': 'Não autorizado'}), 401
+    if session.get('role'):
+        if not check_csrf():
+            return jsonify({'success': False, 'error': 'CSRF inválido'}), 403
     try:
         if 'file' not in request.files:
             return jsonify({'success': False, 'error': 'Nenhum arquivo enviado'}), 400
@@ -428,6 +558,8 @@ def upload_comprovante():
             future = ocr_executor.submit(fn, filepath)
             future.add_done_callback(lambda f, fn=unique_name: _on_ocr_complete(f, fn))
 
+        audit_log('upload', f'{file.filename} -> {unique_name}')
+
         return jsonify({
             'success': True,
             'filename': unique_name,
@@ -447,6 +579,8 @@ def too_large(error):
 
 @app.route('/comprovantes/<filename>')
 def servir_comprovante(filename):
+    if not require_role():
+        return jsonify({'success': False, 'error': 'Não autorizado'}), 401
     safe_path = os.path.realpath(os.path.join(COMPROVANTES_DIR, filename))
     if not safe_path.startswith(os.path.realpath(COMPROVANTES_DIR) + os.sep):
         return jsonify({'success': False, 'error': 'Acesso negado'}), 403
@@ -541,6 +675,7 @@ def iniciar_ngrok():
 
 
 init_db()
+backup_db()
 
 if __name__ == '__main__':
     use_online = '--online' in sys.argv
@@ -550,7 +685,7 @@ if __name__ == '__main__':
     local_ip = socket.gethostbyname(hostname)
     print('=' * 50)
     print('  FESTIVAL MEU ISAQUE E MINHA REBECA')
-    print(f'  Token:     {API_TOKEN}')
+    print(f'  Token:     {API_TOKEN[:8]}...{API_TOKEN[-4:]}')
     print(f'  Admin:     http://localhost:5000')
     print(f'  Auto-Cad.: http://localhost:5000/auto-cadastro')
     print(f'  Rede:      http://{local_ip}:5000')

@@ -6,3 +6,5 @@ __pycache__/
 *.pyc
 *.pyo
 evento_junho.xlsx
+backups/
+logs/

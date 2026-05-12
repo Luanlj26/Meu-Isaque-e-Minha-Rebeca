@@ -985,7 +985,7 @@
             try {
                 fetch('/api/sync-registros', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (window.API_TOKEN || '') },
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.CSRF_TOKEN },
                     body: JSON.stringify({
                         registros: data,
                         excluidos: getIdsExcluidos()
@@ -999,10 +999,12 @@
         }
 
         function generateUUID() {
-            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-                const r = Math.random() * 16 | 0;
-                return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
-            });
+            const bytes = new Uint8Array(16);
+            crypto.getRandomValues(bytes);
+            bytes[6] = (bytes[6] & 0x0f) | 0x40;
+            bytes[8] = (bytes[8] & 0x3f) | 0x80;
+            const hex = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+            return hex.substr(0, 8) + '-' + hex.substr(8, 4) + '-' + hex.substr(12, 4) + '-' + hex.substr(16, 4) + '-' + hex.substr(20, 12);
         }
 
         function resequenceRegistros(registros) {
@@ -1079,10 +1081,13 @@
 
         function mostrarMensagem(texto, tipo) {
             const container = document.getElementById('message-container');
-            container.innerHTML = '<div class="message ' + tipo + '">' + texto + '</div>';
+            container.innerHTML = '';
+            const div = document.createElement('div');
+            div.className = 'message ' + tipo;
+            div.textContent = texto;
+            container.appendChild(div);
             setTimeout(() => {
-                const msg = container.querySelector('.message');
-                if (msg) msg.style.display = 'none';
+                div.style.display = 'none';
             }, 5000);
         }
 
@@ -1122,7 +1127,7 @@
             }
 
             try {
-                const resp = await fetch('/api/registros', { cache: 'no-store', headers: { 'Authorization': 'Bearer ' + (window.API_TOKEN || '') } });
+                const resp = await fetch('/api/registros', { cache: 'no-store', headers: { 'X-CSRF-Token': window.CSRF_TOKEN } });
                 if (resp.status === 401) {
                     mostrarMensagem('Erro de autentica\u00e7\u00e3o. Token inv\u00e1lido. Reinicie o servidor.', 'error');
                 } else if (resp.ok) {
@@ -1146,7 +1151,7 @@
                         // Reenvia dados mesclados para o servidor
                         fetch('/api/sync-registros', {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (window.API_TOKEN || '') },
+                            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.CSRF_TOKEN },
                             body: JSON.stringify({ registros: merged, excluidos: getIdsExcluidos() })
                         }).catch(function() {});
                     }
@@ -1353,7 +1358,7 @@
                 '<div style="text-align:center;">' +
                 '<p style="color:#555;margin-bottom:15px;font-size:14px;">Escaneie para acessar o ' + titulo + '</p>' +
                 '<div style="background:white;border-radius:12px;padding:10px;display:inline-block;box-shadow:0 2px 12px rgba(0,0,0,0.1);">' +
-                '<img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent(url) + '" alt="QR Code" style="width:200px;height:200px;border-radius:8px;">' +
+                '<img src="/api/qr-code?size=10&data=' + encodeURIComponent(url) + '" alt="QR Code" style="width:200px;height:200px;border-radius:8px;">' +
                 '</div>' +
                 '<p style="margin-top:15px;font-size:16px;font-weight:700;color:#1565c0;word-break:break-all;">' + url + '</p>' +
                 '<div style="margin-top:15px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">' +
@@ -1391,7 +1396,7 @@
             const base = getBaseUrl();
             const autoUrl = base + '/auto-cadastro';
             document.getElementById('autocadastro-link').textContent = autoUrl;
-            document.getElementById('qr-autocadastro').src = 'https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=' + encodeURIComponent(autoUrl);
+            document.getElementById('qr-autocadastro').src = '/api/qr-code?size=5&data=' + encodeURIComponent(autoUrl);
 
             // Set PIX key display from server variable
             var pixKey = window.PIX_KEY || 'luanborges26@outlook.com';
@@ -1452,7 +1457,7 @@
             try {
                 await fetch('/api/sync-registros', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (window.API_TOKEN || '') },
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.CSRF_TOKEN },
                     body: JSON.stringify({
                         registros: registros,
                         excluidos: getIdsExcluidos()
@@ -1551,7 +1556,7 @@
                 formData.append('file', file);
                 const resp = await fetch('/api/upload', {
                     method: 'POST',
-                    headers: { 'Authorization': 'Bearer ' + (window.API_TOKEN || '') },
+                    headers: { 'X-CSRF-Token': window.CSRF_TOKEN },
                     body: formData
                 });
                 if (!resp.ok) throw new Error('Falha no upload (HTTP ' + resp.status + ')');
@@ -1756,7 +1761,7 @@
             try {
                 await fetch('/api/sync-registros', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (window.API_TOKEN || '') },
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.CSRF_TOKEN },
                     body: JSON.stringify({ registros: registros, excluidos: excs })
                 });
                 mostrarMensagem('Registro excluído com sucesso!', 'success');
@@ -1784,7 +1789,7 @@
             try {
                 await fetch('/api/sync-registros', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (window.API_TOKEN || '') },
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.CSRF_TOKEN },
                     body: JSON.stringify({
                         registros: registros,
                         excluidos: getIdsExcluidos()
@@ -1847,7 +1852,7 @@
             try {
                 const formData = new FormData();
                 formData.append('file', file);
-                const resp = await fetch('/api/upload', { method: 'POST', headers: { 'Authorization': 'Bearer ' + (window.API_TOKEN || '') }, body: formData });
+                const resp = await fetch('/api/upload', { method: 'POST', headers: { 'X-CSRF-Token': window.CSRF_TOKEN }, body: formData });
                 if (!resp.ok) throw new Error('Falha no upload (HTTP ' + resp.status + ')');
                 const result = await resp.json();
                 if (!result.success) throw new Error(result.error || 'Erro no upload');

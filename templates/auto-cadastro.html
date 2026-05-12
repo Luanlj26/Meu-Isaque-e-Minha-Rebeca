@@ -368,10 +368,12 @@
         }
 
         function generateUUID() {
-            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-                var r = Math.random() * 16 | 0;
-                return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
-            });
+            var bytes = new Uint8Array(16);
+            crypto.getRandomValues(bytes);
+            bytes[6] = (bytes[6] & 0x0f) | 0x40;
+            bytes[8] = (bytes[8] & 0x3f) | 0x80;
+            var hex = Array.from(bytes).map(function(b) { return b.toString(16).padStart(2, '0'); }).join('');
+            return hex.substr(0, 8) + '-' + hex.substr(8, 4) + '-' + hex.substr(12, 4) + '-' + hex.substr(16, 4) + '-' + hex.substr(20, 12);
         }
 
         function saveRegistros(data) {
@@ -379,7 +381,7 @@
             try {
                 fetch('/api/sync-registros', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (window.API_TOKEN || '') },
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.CSRF_TOKEN },
                     body: JSON.stringify({
                         registros: data,
                         excluidos: getIdsExcluidos()
@@ -453,10 +455,13 @@
         function mostrarMensagem(texto, tipo) {
             var container = document.getElementById('message-container');
             if (!container) return;
-            container.innerHTML = '<div class="message ' + tipo + '">' + texto + '</div>';
+            container.innerHTML = '';
+            var div = document.createElement('div');
+            div.className = 'message ' + tipo;
+            div.textContent = texto;
+            container.appendChild(div);
             setTimeout(function() {
-                var msg = container.querySelector('.message');
-                if (msg) msg.style.display = 'none';
+                div.style.display = 'none';
             }, 8000);
         }
 
@@ -474,7 +479,7 @@
         function expandirQR() {
             var base = getBaseUrl();
             var url = base + '/auto-cadastro';
-            document.getElementById('qr-modal-img').src = 'https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=' + encodeURIComponent(url);
+            document.getElementById('qr-modal-img').src = '/api/qr-code?size=10&data=' + encodeURIComponent(url);
             document.getElementById('qr-modal-url').textContent = url;
             document.getElementById('qr-modal').style.display = 'flex';
         }
@@ -546,53 +551,25 @@
 
         window.onerror = function(msg, url, line) {
             var c = document.getElementById('message-container');
-            if (c) c.innerHTML = '<div class="message error">Erro JS: ' + msg + ' (linha ' + line + ')</div>';
+            if (c) {
+                c.innerHTML = '';
+                var d = document.createElement('div');
+                d.className = 'message error';
+                d.textContent = 'Erro JS: ' + msg + ' (linha ' + line + ')';
+                c.appendChild(d);
+            }
         };
 
         document.addEventListener('DOMContentLoaded', function() {
             recalcularProximoNumero();
-            carregarDoServidor();
             atualizarQRCode();
             var pixEl = document.getElementById('pix-chave-display');
             if (pixEl && window.PIX_KEY) pixEl.textContent = window.PIX_KEY;
             var base = getBaseUrl();
             var autoUrl = base + '/auto-cadastro';
             var qrImg = document.getElementById('qr-page-img');
-            if (qrImg) qrImg.src = 'https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=' + encodeURIComponent(autoUrl);
+            if (qrImg) qrImg.src = '/api/qr-code?size=5&data=' + encodeURIComponent(autoUrl);
         });
-
-        function carregarDoServidor() {
-            return fetch('/api/registros', { cache: 'no-store', headers: { 'Authorization': 'Bearer ' + (window.API_TOKEN || '') } })
-                .then(function(resp) {
-                    if (!resp.ok) { console.warn('GET /api/registros falhou:', resp.status); return; }
-                    return resp.json().then(function(body) {
-                        var serverRegistros = body.registros || body;
-
-                        if (Array.isArray(serverRegistros)) {
-                            // Merge por UUID: preserva registros locais que ainda não foram pro servidor
-                            var serverUuids = new Set(serverRegistros.map(function(r) { return r._uuid; }));
-                            var serverExcluidos = new Set(body.excluidos || []);
-                            var merged = serverRegistros.slice();
-                            var localData = getRegistros();
-                            for (var i = 0; i < localData.length; i++) {
-                                var r = localData[i];
-                                if (r._uuid && !serverUuids.has(r._uuid) && !serverExcluidos.has(r._uuid) && !serverExcluidos.has(String(r.id))) {
-                                    merged.push(r);
-                                }
-                            }
-
-                            merged = resequenceRegistros(merged);
-                            localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
-                            fetch('/api/sync-registros', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (window.API_TOKEN || '') },
-                                body: JSON.stringify({ registros: merged, excluidos: getIdsExcluidos() })
-                            }).catch(function() {});
-                        }
-                    });
-                })
-                .catch(function() {});
-        }
 
         function salvarRegistro(event) {
             event.preventDefault();
