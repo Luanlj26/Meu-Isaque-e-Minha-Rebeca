@@ -286,10 +286,22 @@ def salvar_tudo(registros_data, excluidos_data):
         log.warning('Erro na limpeza de comprovantes: %s', e)
 
 
+def contar_registros():
+    try:
+        conn = get_db()
+        count = conn.execute('SELECT COUNT(*) FROM registros').fetchone()[0]
+        conn.close()
+        return count
+    except Exception as e:
+        log.warning('Erro ao contar registros: %s', e)
+        return 0
+
+
 def _render_template(template_name, is_admin=False):
     public_url = os.environ.get('PUBLIC_URL', '')
     html = open(os.path.join(TEMPLATES_DIR, template_name), 'r', encoding='utf-8').read()
     token = API_TOKEN if is_admin else AUTO_CADASTRO_TOKEN
+    qtd_atingida = contar_registros()
     script = (
         f'<script>'
         f'window.PUBLIC_URL="{public_url}";'
@@ -297,6 +309,7 @@ def _render_template(template_name, is_admin=False):
         f'window.PIX_KEY="{PIX_CORRETO}";'
         f'window.PRECO_ATE_50={PRECO_ATE_50};'
         f'window.PRECO_ACIMA_50={PRECO_ACIMA_50};'
+        f'window.QTD_ATINGIDA={qtd_atingida};'
         f'</script>'
     )
     html = html.replace('</head>', script + '</head>')

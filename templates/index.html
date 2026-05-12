@@ -1212,7 +1212,8 @@
                     ? numeros.map(n => '<span class="badge-numeros">' + n.trim() + '</span>').join(' ')
                     : '<span style="color:#999;">&mdash;</span>';
                 const qtd = parseInt(r.quantidade_pulseiras, 10) || 0;
-                const valorTotal = qtd <= 50 ? qtd * (window.PRECO_ATE_50 || 7) : 50 * (window.PRECO_ATE_50 || 7) + (qtd - 50) * (window.PRECO_ACIMA_50 || 10);
+                const precoUnitario = (window.QTD_ATINGIDA || 0) < 50 ? (window.PRECO_ATE_50 || 7) : (window.PRECO_ACIMA_50 || 10);
+            const valorTotal = qtd * precoUnitario;
                 const pago = r.pagamento === 'Confirmado';
                 return '<tr>' +
                     '<td class="id-cell"><strong>' + r.id + '</strong></td>' +
@@ -1238,7 +1239,8 @@
                     ? numeros.map(n => '<span class="badge-numeros">' + n.trim() + '</span>').join(' ')
                     : '<span style="color:#999;">&mdash;</span>';
                 const qtd = parseInt(r.quantidade_pulseiras, 10) || 0;
-                const valorTotal = qtd <= 50 ? qtd * (window.PRECO_ATE_50 || 7) : 50 * (window.PRECO_ATE_50 || 7) + (qtd - 50) * (window.PRECO_ACIMA_50 || 10);
+                const precoUnitario = (window.QTD_ATINGIDA || 0) < 50 ? (window.PRECO_ATE_50 || 7) : (window.PRECO_ACIMA_50 || 10);
+            const valorTotal = qtd * precoUnitario;
                 return '<div class="registration-card">' +
                     '<div class="card-header">' +
                         '<div><span class="card-id">#' + r.id + '</span></div>' +
@@ -1314,7 +1316,8 @@
                 numsDisplay.style.color = '#888';
                 return;
             }
-            const valorTotal = qtd <= 50 ? qtd * (window.PRECO_ATE_50 || 7) : 50 * (window.PRECO_ATE_50 || 7) + (qtd - 50) * (window.PRECO_ACIMA_50 || 10);
+            const precoUnitario = (window.QTD_ATINGIDA || 0) < 50 ? (window.PRECO_ATE_50 || 7) : (window.PRECO_ACIMA_50 || 10);
+            const valorTotal = qtd * precoUnitario;
             display.style.display = 'block';
             display.textContent = 'Valor total: R$ ' + valorTotal.toFixed(2);
 
@@ -1515,7 +1518,8 @@
             if (!r) return;
             document.getElementById('upload-modal-id').value = id;
             const qtd = parseInt(r.quantidade_pulseiras, 10) || 0;
-            const valorTotal = qtd <= 50 ? qtd * (window.PRECO_ATE_50 || 7) : 50 * (window.PRECO_ATE_50 || 7) + (qtd - 50) * (window.PRECO_ACIMA_50 || 10);
+            const precoUnitario = (window.QTD_ATINGIDA || 0) < 50 ? (window.PRECO_ATE_50 || 7) : (window.PRECO_ACIMA_50 || 10);
+            const valorTotal = qtd * precoUnitario;
             document.getElementById('upload-modal-info').innerHTML =
                 '<strong>#' + id + ' - ' + (r.nome || '') + '</strong><br>' +
                 'Pulseiras: ' + qtd + ' | Valor: R$ ' + valorTotal.toFixed(2);
@@ -1897,7 +1901,8 @@
             }
             const dados = registros.map(r => {
                 const qtd = parseInt(r.quantidade_pulseiras, 10) || 0;
-                const valorTotal = qtd <= 50 ? qtd * (window.PRECO_ATE_50 || 7) : 50 * (window.PRECO_ATE_50 || 7) + (qtd - 50) * (window.PRECO_ACIMA_50 || 10);
+                const precoUnitario = (window.QTD_ATINGIDA || 0) < 50 ? (window.PRECO_ATE_50 || 7) : (window.PRECO_ACIMA_50 || 10);
+            const valorTotal = qtd * precoUnitario;
                 let analiseResumo = '';
                 if (r.comprovante_analise) {
                     try {

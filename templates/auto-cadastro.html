@@ -529,7 +529,8 @@
             }
             const precoAte = window.PRECO_ATE_50 || 7;
             const precoAcima = window.PRECO_ACIMA_50 || 10;
-            const valorTotal = qtd <= 50 ? qtd * precoAte : 50 * precoAte + (qtd - 50) * precoAcima;
+            const precoUnitario = (window.QTD_ATINGIDA || 0) < 50 ? precoAte : precoAcima;
+            const valorTotal = qtd * precoUnitario;
             display.style.display = 'block';
             display.textContent = 'Valor total: R$ ' + valorTotal.toFixed(2);
 
