@@ -1,23 +1,18 @@
 @echo off
-title Festival Meu Isaque e Minha Rebeca - ONLINE
+title Festival Meu Isaque e Minha Rebeca
 cd /d "%~dp0"
 echo ========================================
 echo   FESTIVAL MEU ISAQUE E MINHA REBECA
 echo ========================================
-echo   Iniciando com acesso PUBLICO...
-echo ========================================
+echo   Matando servidor antigo (porta 5000)...
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":5000 "') do (
+    if not "%%a"=="" taskkill /f /pid %%a >nul 2>&1
+)
+timeout /t 1 /nobreak >nul
+echo   Iniciando servidor com AUTO-RECARREGAMENTO
+echo   Qualquer alteracao nos arquivos atualiza sozinho!
 echo.
-echo   O ngrok criara um link publico para
-echo   que qualquer pessoa acesse de qualquer lugar.
+echo   Local:  http://localhost:5000
 echo.
-echo   Se tiver plano pago ngrok, o link sera:
-echo   https://festival-isaeque-rebeca.ngrok-free.app
-echo.
-echo   Primeiro uso? Crie conta gratis em:
-echo   https://dashboard.ngrok.com/signup
-echo.
-echo   Depois pegue seu token em:
-echo   https://dashboard.ngrok.com/get-started/your-authtoken
-echo.
-python app.py --online --prod
+python app.py --online
 pause

@@ -869,7 +869,7 @@
                 <span style="font-size:24px;">&#128179;</span>
                 <div style="flex:1;min-width:200px;">
                     <div style="font-size:13px;font-weight:600;color:#555;margin-bottom:2px;">CHAVE PIX</div>
-                    <div style="font-size:16px;font-weight:700;color:#333;word-break:break-all;" id="pix-display">luanborges26@outlook.com</div>
+                    <div style="font-size:16px;font-weight:700;color:#333;word-break:break-all;" id="pix-display"></div>
                 </div>
                 <div style="display:flex;gap:10px;flex-wrap:wrap;">
                     <button class="btn btn-success" onclick="copiarPix()">&#128203; Copiar PIX</button>
@@ -1022,10 +1022,6 @@
             return registros;
         }
 
-        function getNextId(registros) {
-            return registros.length + 1;
-        }
-
         function recalcularProximoNumero() {
             const registros = getRegistros();
             let maxNum = 0;
@@ -1063,13 +1059,6 @@
             return nums;
         }
 
-        function reservarNumeros(qtd) {
-            const nums = numerosDisponiveis(qtd);
-            if (!nums) return null;
-            setProximoNumero(nums[nums.length - 1] + 1);
-            return nums;
-        }
-
         function switchTab(tab) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
             document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
@@ -1080,7 +1069,7 @@
                 if (el.textContent.includes('Cadastro') && tab === 'cadastro') el.classList.add('active');
             });
             if (tab === 'listagem') {
-                cancelarEdicao();
+                limparFormulario();
                 carregarRegistros();
             }
             if (tab === 'inicio') {
@@ -1223,7 +1212,7 @@
                     ? numeros.map(n => '<span class="badge-numeros">' + n.trim() + '</span>').join(' ')
                     : '<span style="color:#999;">&mdash;</span>';
                 const qtd = parseInt(r.quantidade_pulseiras, 10) || 0;
-                const valorTotal = qtd <= 50 ? qtd * 7 : 50 * 7 + (qtd - 50) * 10;
+                const valorTotal = qtd <= 50 ? qtd * (window.PRECO_ATE_50 || 7) : 50 * (window.PRECO_ATE_50 || 7) + (qtd - 50) * (window.PRECO_ACIMA_50 || 10);
                 const pago = r.pagamento === 'Confirmado';
                 return '<tr>' +
                     '<td class="id-cell"><strong>' + r.id + '</strong></td>' +
@@ -1249,7 +1238,7 @@
                     ? numeros.map(n => '<span class="badge-numeros">' + n.trim() + '</span>').join(' ')
                     : '<span style="color:#999;">&mdash;</span>';
                 const qtd = parseInt(r.quantidade_pulseiras, 10) || 0;
-                const valorTotal = qtd <= 50 ? qtd * 7 : 50 * 7 + (qtd - 50) * 10;
+                const valorTotal = qtd <= 50 ? qtd * (window.PRECO_ATE_50 || 7) : 50 * (window.PRECO_ATE_50 || 7) + (qtd - 50) * (window.PRECO_ACIMA_50 || 10);
                 return '<div class="registration-card">' +
                     '<div class="card-header">' +
                         '<div><span class="card-id">#' + r.id + '</span></div>' +
@@ -1325,7 +1314,7 @@
                 numsDisplay.style.color = '#888';
                 return;
             }
-            const valorTotal = qtd <= 50 ? qtd * 7 : 50 * 7 + (qtd - 50) * 10;
+            const valorTotal = qtd <= 50 ? qtd * (window.PRECO_ATE_50 || 7) : 50 * (window.PRECO_ATE_50 || 7) + (qtd - 50) * (window.PRECO_ACIMA_50 || 10);
             display.style.display = 'block';
             display.textContent = 'Valor total: R$ ' + valorTotal.toFixed(2);
 
@@ -1340,7 +1329,7 @@
         }
 
         function copiarPix() {
-            const chave = 'luanborges26@outlook.com';
+            const chave = window.PIX_KEY || 'luanborges26@outlook.com';
             navigator.clipboard.writeText(chave).then(() => {
                 mostrarMensagem('Chave PIX copiada para a área de transferência!', 'success');
             }).catch(() => {
@@ -1401,38 +1390,12 @@
             document.getElementById('autocadastro-link').textContent = autoUrl;
             document.getElementById('qr-autocadastro').src = 'https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=' + encodeURIComponent(autoUrl);
 
-            // Check for upload result from form submission redirect
-            const params = new URLSearchParams(window.location.search);
-            if (params.get('upload_done') === '1') {
-                const pending = localStorage.getItem('upload_pending');
-                if (pending) {
-                    localStorage.removeItem('upload_pending');
-                    try {
-                        const data = JSON.parse(pending);
-                        let registros = getRegistros();
-                        const idx = registros.findIndex(x => x.id == data.id);
-                        if (idx !== -1 && data.success) {
-                            registros[idx].comprovante = data.filename;
-                            registros[idx].comprovante_nome = data.original_name || data.filename;
-                            registros[idx].comprovante_analise = null;
-                            registros[idx].pagamento = 'Confirmado';
-                            saveRegistros(registros);
-                            mostrarMensagem('Comprovante anexado e pagamento confirmado!', 'success');
-                            carregarRegistros();
-                            if (data.filename) {
-                                pollOcrResult(data.filename, data.id);
-                            }
-                        } else if (idx !== -1) {
-                            mostrarMensagem('Erro: ' + (data.error || 'Falha no upload'), 'error');
-                        }
-                    } catch (e) {
-                        console.error('Upload pending error:', e);
-                    }
-                }
-                // Clean URL and go to listagem tab
-                window.history.replaceState({}, '', '/');
-                switchTab('listagem');
-            }
+            // Set PIX key display from server variable
+            var pixKey = window.PIX_KEY || 'luanborges26@outlook.com';
+            var pixDisplay = document.getElementById('pix-display');
+            if (pixDisplay) pixDisplay.textContent = pixKey;
+            var pixUpload = document.getElementById('pix-upload-display');
+            if (pixUpload) pixUpload.textContent = pixKey;
         });
 
         async function salvarRegistro(event) {
@@ -1478,7 +1441,7 @@
             document.querySelectorAll('.tab-btn').forEach(function(el) {
                 if (el.textContent.includes('Listagem')) el.classList.add('active');
             });
-            cancelarEdicao();
+            limparFormulario();
             document.getElementById('loading-listagem').style.display = 'none';
             todosRegistros = getRegistros();
             filtrarRegistros();
@@ -1520,13 +1483,6 @@
             switchTab('cadastro');
         }
 
-        function verComprovante(id) {
-            const registros = getRegistros();
-            const r = registros.find(x => x.id == id);
-            if (!r || !r.comprovante) { mostrarMensagem('Nenhum comprovante anexado.', 'error'); return; }
-            window.open('/comprovantes/' + r.comprovante, '_blank');
-        }
-
         function gerarColunaComprovante(r) {
             if (r.comprovante) {
                 const ext = r.comprovante.split('.').pop().toLowerCase();
@@ -1559,7 +1515,7 @@
             if (!r) return;
             document.getElementById('upload-modal-id').value = id;
             const qtd = parseInt(r.quantidade_pulseiras, 10) || 0;
-            const valorTotal = qtd <= 50 ? qtd * 7 : 50 * 7 + (qtd - 50) * 10;
+            const valorTotal = qtd <= 50 ? qtd * (window.PRECO_ATE_50 || 7) : 50 * (window.PRECO_ATE_50 || 7) + (qtd - 50) * (window.PRECO_ACIMA_50 || 10);
             document.getElementById('upload-modal-info').innerHTML =
                 '<strong>#' + id + ' - ' + (r.nome || '') + '</strong><br>' +
                 'Pulseiras: ' + qtd + ' | Valor: R$ ' + valorTotal.toFixed(2);
@@ -1567,18 +1523,75 @@
             document.getElementById('upload-modal-status').textContent = '';
             document.getElementById('upload-modal-btn').disabled = false;
             document.getElementById('upload-modal-btn').innerHTML = '&#128259; Enviar Comprovante';
-            document.getElementById('upload-form-token').value = window.API_TOKEN || '';
             document.getElementById('modal-upload').classList.add('active');
         }
 
-        function gerarPreviewComprovante(r) {
-            if (!r.comprovante) return '';
-            const ext = r.comprovante.split('.').pop().toLowerCase();
-            const isImg = ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext);
-            if (isImg) {
-                return '<img src="/comprovantes/' + r.comprovante + '" style="width:80px;height:60px;object-fit:cover;border-radius:6px;border:1px solid #e0d8d8;cursor:pointer;" onclick="verComprovanteModal(' + r.id + ')" title="Clique para ampliar">';
-            } else {
-                return '<div style="width:80px;height:60px;display:flex;align-items:center;justify-content:center;background:#fce8e8;border-radius:6px;border:1px solid #e0d8d8;font-size:28px;cursor:pointer;" onclick="verComprovanteModal(' + r.id + ')" title="' + (r.comprovante_nome || 'PDF') + '">&#128196;</div>';
+        async function enviarComprovanteAdmin() {
+            const id = document.getElementById('upload-modal-id').value;
+            const fileInput = document.getElementById('upload-modal-file');
+            const file = fileInput.files[0];
+            const status = document.getElementById('upload-modal-status');
+            const btn = document.getElementById('upload-modal-btn');
+
+            if (!file) {
+                status.innerHTML = '<span style="color:#dc3545;">&#9888; Selecione um arquivo primeiro.</span>';
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerHTML = '&#128190; Enviando...';
+            status.innerHTML = '<span style="color:#1565c0;">&#128259; Enviando comprovante...</span>';
+
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+                const resp = await fetch('/api/upload', {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + (window.API_TOKEN || '') },
+                    body: formData
+                });
+                if (!resp.ok) throw new Error('Falha no upload (HTTP ' + resp.status + ')');
+                const result = await resp.json();
+                if (!result.success) throw new Error(result.error || 'Erro no upload');
+
+                let registros = getRegistros();
+                const idx = registros.findIndex(x => x.id == id);
+                if (idx === -1) throw new Error('Registro n\u00e3o encontrado');
+
+                registros[idx].pagamento = 'Confirmado';
+                registros[idx].comprovante = result.filename;
+                registros[idx].comprovante_nome = file.name;
+                registros[idx].comprovante_analise = null;
+                saveRegistros(registros);
+
+                status.innerHTML = '<span style="color:#28a745;">&#10003; Comprovante anexado! Pagamento confirmado.</span>';
+                btn.innerHTML = '&#10003; Enviado';
+
+                if (result.filename) {
+                    (function(fn, rid) {
+                        setTimeout(function() {
+                            fetch('/api/ocr/' + encodeURIComponent(fn)).then(function(r) { return r.json(); }).then(function(data) {
+                                if (data.status === 'done' && data.analise) {
+                                    var regs = getRegistros();
+                                    var i = regs.findIndex(function(x) { return x.id == rid; });
+                                    if (i !== -1) {
+                                        regs[i].comprovante_analise = JSON.stringify(data.analise);
+                                        saveRegistros(regs);
+                                    }
+                                }
+                            }).catch(function() {});
+                        }, 3000);
+                    })(result.filename, id);
+                }
+
+                setTimeout(function() {
+                    document.getElementById('modal-upload').classList.remove('active');
+                    carregarRegistros();
+                }, 1500);
+            } catch (e) {
+                status.innerHTML = '<span style="color:#dc3545;">&#9888; Erro: ' + e.message + '</span>';
+                btn.disabled = false;
+                btn.innerHTML = '&#128259; Enviar Comprovante';
             }
         }
 
@@ -1614,7 +1627,7 @@
                 badges.push('<span class="analise-badge pendente" title="Valor n\u00e3o detectado">R$?</span>');
             }
             if (analise.chave_pix_encontrada) {
-                const cls = analise.chave_pix_encontrada.toLowerCase() === 'luanborges26@outlook.com' ? 'ok' : 'erro';
+                const cls = analise.chave_pix_encontrada.toLowerCase() === (window.PIX_KEY || 'luanborges26@outlook.com').toLowerCase() ? 'ok' : 'erro';
                 badges.push('<span class="analise-badge ' + cls + '" title="Chave PIX: ' + analise.chave_pix_encontrada + '">PIX</span>');
             } else {
                 badges.push('<span class="analise-badge pendente" title="Chave PIX n\u00e3o detectada">PIX?</span>');
@@ -1651,8 +1664,9 @@
             }
 
             if (analise.chave_pix_encontrada) {
-                const cor = analise.chave_pix_encontrada.toLowerCase() === 'luanborges26@outlook.com' ? '#28a745' : '#dc3545';
-                const status = analise.chave_pix_encontrada.toLowerCase() === 'luanborges26@outlook.com' ? 'Corresponde' : 'DIVERGE';
+                const pixKey = (window.PIX_KEY || 'luanborges26@outlook.com').toLowerCase();
+                const cor = analise.chave_pix_encontrada.toLowerCase() === pixKey ? '#28a745' : '#dc3545';
+                const status = analise.chave_pix_encontrada.toLowerCase() === pixKey ? 'Corresponde' : 'DIVERGE';
                 rows.push('<div class="analise-row"><span class="analise-label">Chave PIX no comprovante</span><span class="analise-value" style="color:' + cor + ';">' + analise.chave_pix_encontrada + ' (' + status + ')</span></div>');
             } else {
                 rows.push('<div class="analise-row"><span class="analise-label">Chave PIX no comprovante</span><span class="analise-value" style="color:#999;">N\u00e3o detectada</span></div>');
@@ -1690,10 +1704,6 @@
             }
             limparFormulario();
             switchTab('listagem');
-        }
-
-        function cancelarEdicao() {
-            limparFormulario();
         }
 
         function limparFormulario() {
@@ -1782,23 +1792,6 @@
         }
 
         let confirmacaoRegistroId = null;
-
-        function abrirModalConfirmacao(id) {
-            confirmacaoRegistroId = id;
-            const registros = getRegistros();
-            const r = registros.find(x => x.id == id);
-            if (!r) return;
-            const qtd = parseInt(r.quantidade_pulseiras, 10) || 0;
-            const valorTotal = qtd <= 50 ? qtd * 7 : 50 * 7 + (qtd - 50) * 10;
-            document.getElementById('confirmacao-info').innerHTML =
-                '<strong>#' + r.id + ' - ' + (r.nome || '') + '</strong><br>' +
-                'Pulseiras: ' + qtd + ' | Valor: R$ ' + valorTotal.toFixed(2);
-            document.getElementById('confirmacao-comprovante-input').value = '';
-            document.getElementById('confirmacao-status').textContent = '';
-            document.getElementById('btn-confirmar-pagamento').disabled = false;
-            document.getElementById('btn-confirmar-pagamento').innerHTML = '&#128259; Anexar e Confirmar Pagamento';
-            document.getElementById('modal-confirmacao').classList.add('active');
-        }
 
         function fecharModalConfirmacao() {
             document.getElementById('modal-confirmacao').classList.remove('active');
@@ -1904,7 +1897,7 @@
             }
             const dados = registros.map(r => {
                 const qtd = parseInt(r.quantidade_pulseiras, 10) || 0;
-                const valorTotal = qtd <= 50 ? qtd * 7 : 50 * 7 + (qtd - 50) * 10;
+                const valorTotal = qtd <= 50 ? qtd * (window.PRECO_ATE_50 || 7) : 50 * (window.PRECO_ATE_50 || 7) + (qtd - 50) * (window.PRECO_ACIMA_50 || 10);
                 let analiseResumo = '';
                 if (r.comprovante_analise) {
                     try {
@@ -2030,7 +2023,7 @@
                 <div id="confirmacao-info" style="margin-bottom:15px;padding:12px;background:#f8f9fa;border-radius:8px;font-size:14px;"></div>
                 <div class="form-group" style="margin-bottom:15px;">
                     <label style="display:block;font-size:13px;font-weight:600;color:#555;margin-bottom:6px;">COMPROVANTE DE PAGAMENTO <span style="color:#D01010;">*</span></label>
-                    <input type="file" id="confirmacao-comprovante-input" accept=".pdf,application/pdf" style="width:100%;padding:8px 0;">
+                    <input type="file" id="confirmacao-comprovante-input" accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,application/pdf,image/*" style="width:100%;padding:8px 0;">
                 </div>
                 <div id="confirmacao-status" style="margin-bottom:10px;font-size:13px;font-weight:600;"></div>
                 <button class="btn btn-success" id="btn-confirmar-pagamento" onclick="confirmarPagamento()" style="width:100%;justify-content:center;">&#128259; Anexar e Confirmar Pagamento</button>
@@ -2045,23 +2038,20 @@
                 <h3>&#128259; Anexar Comprovante</h3>
                 <button class="modal-close" onclick="document.getElementById('modal-upload').classList.remove('active')">&times;</button>
             </div>
-            <form action="/api/upload-form" method="POST" enctype="multipart/form-data">
-                <input type="hidden" name="_token" id="upload-form-token" value="">
-                <input type="hidden" name="id" id="upload-modal-id">
-                <div class="modal-body">
-                    <div style="background:#f8f4f4;border:2px dashed #d4c8c8;border-radius:12px;padding:16px;margin-bottom:15px;text-align:center;">
-                        <div style="font-size:12px;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Chave PIX</div>
-                        <div style="font-size:18px;font-weight:700;color:#333;word-break:break-all;margin-top:4px;">luanborges26@outlook.com</div>
-                    </div>
-                    <div id="upload-modal-info" style="margin-bottom:15px;padding:12px;background:#f8f9fa;border-radius:8px;font-size:14px;"></div>
-                    <div class="form-group" style="margin-bottom:15px;">
-                        <label style="display:block;font-size:13px;font-weight:600;color:#555;margin-bottom:6px;">COMPROVANTE DE PAGAMENTO</label>
-                        <input type="file" id="upload-modal-file" name="file" accept=".pdf,application/pdf" required style="width:100%;padding:8px 0;">
-                    </div>
-                    <div id="upload-modal-status" style="margin-bottom:10px;font-size:13px;font-weight:600;"></div>
-                    <button type="submit" class="btn btn-success" id="upload-modal-btn" style="width:100%;justify-content:center;">&#128259; Enviar Comprovante</button>
+            <div class="modal-body">
+                <input type="hidden" id="upload-modal-id">
+                <div style="background:#f8f4f4;border:2px dashed #d4c8c8;border-radius:12px;padding:16px;margin-bottom:15px;text-align:center;">
+                    <div style="font-size:12px;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Chave PIX</div>
+                    <div style="font-size:18px;font-weight:700;color:#333;word-break:break-all;margin-top:4px;" id="pix-upload-display"></div>
                 </div>
-            </form>
+                <div id="upload-modal-info" style="margin-bottom:15px;padding:12px;background:#f8f9fa;border-radius:8px;font-size:14px;"></div>
+                <div class="form-group" style="margin-bottom:15px;">
+                    <label style="display:block;font-size:13px;font-weight:600;color:#555;margin-bottom:6px;">COMPROVANTE DE PAGAMENTO</label>
+                    <input type="file" id="upload-modal-file" accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,application/pdf,image/*" required style="width:100%;padding:8px 0;">
+                </div>
+                <div id="upload-modal-status" style="margin-bottom:10px;font-size:13px;font-weight:600;"></div>
+                <button class="btn btn-success" id="upload-modal-btn" onclick="enviarComprovanteAdmin()" style="width:100%;justify-content:center;">&#128259; Enviar Comprovante</button>
+            </div>
         </div>
     </div>
 

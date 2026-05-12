@@ -7,18 +7,22 @@ import json
 import sqlite3
 import secrets
 import threading
-from datetime import datetime
+import logging
 from concurrent.futures import ThreadPoolExecutor
 from flask import Flask, jsonify, request, send_file
 from PIL import Image
 import fitz
+
+logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(message)s', datefmt='%H:%M:%S')
+log = logging.getLogger(__name__)
 
 try:
     import pytesseract
     pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
     os.environ['TESSDATA_PREFIX'] = os.path.join(os.environ['LOCALAPPDATA'], 'Tesseract-OCR', 'tessdata')
     TESSERACT_DISPONIVEL = True
-except Exception:
+except Exception as e:
+    log.warning('Tesseract OCR nao disponivel: %s', e)
     TESSERACT_DISPONIVEL = False
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -43,6 +47,10 @@ def get_api_token():
     return token
 
 API_TOKEN = get_api_token()
+AUTO_CADASTRO_TOKEN = secrets.token_urlsafe(16)
+
+PRECO_ATE_50 = 7
+PRECO_ACIMA_50 = 10
 
 ocr_executor = ThreadPoolExecutor(max_workers=4)
 ocr_results = {}
@@ -99,18 +107,19 @@ def handle_options():
 
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024
 
-ALLOWED_EXTENSIONS = {'pdf'}
+ALLOWED_EXTENSIONS = {'pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp'}
 
 PIX_CORRETO = 'luanborges26@outlook.com'
 
 
-def require_token():
+def require_token(admin_only=False):
     auth = request.headers.get('Authorization', '')
-    if auth.startswith('Bearer ') and auth[7:] == API_TOKEN:
-        return True
-    if request.form.get('_token') == API_TOKEN:
-        return True
-    return False
+    token = auth[7:] if auth.startswith('Bearer ') else ''
+    if not token:
+        token = request.form.get('_token', '')
+    if admin_only:
+        return token == API_TOKEN
+    return token in (API_TOKEN, AUTO_CADASTRO_TOKEN)
 
 
 def allowed_file(filename):
@@ -271,23 +280,32 @@ def salvar_tudo(registros_data, excluidos_data):
             if fname not in comprovantes_ativos:
                 try:
                     os.remove(os.path.join(COMPROVANTES_DIR, fname))
-                except:
-                    pass
-    except:
-        pass
+                except OSError as e:
+                    log.warning('Erro ao deletar comprovante %s: %s', fname, e)
+    except OSError as e:
+        log.warning('Erro na limpeza de comprovantes: %s', e)
 
 
-def _render_template(template_name):
+def _render_template(template_name, is_admin=False):
     public_url = os.environ.get('PUBLIC_URL', '')
     html = open(os.path.join(TEMPLATES_DIR, template_name), 'r', encoding='utf-8').read()
-    script = f'<script>window.PUBLIC_URL="{public_url}";window.API_TOKEN="{API_TOKEN}";</script>'
+    token = API_TOKEN if is_admin else AUTO_CADASTRO_TOKEN
+    script = (
+        f'<script>'
+        f'window.PUBLIC_URL="{public_url}";'
+        f'window.API_TOKEN="{token}";'
+        f'window.PIX_KEY="{PIX_CORRETO}";'
+        f'window.PRECO_ATE_50={PRECO_ATE_50};'
+        f'window.PRECO_ACIMA_50={PRECO_ACIMA_50};'
+        f'</script>'
+    )
     html = html.replace('</head>', script + '</head>')
     return html, 200, {'Content-Type': 'text/html; charset=utf-8'}
 
 
 @app.route('/')
 def index():
-    return _render_template('index.html')
+    return _render_template('index.html', is_admin=True)
 
 
 @app.route('/auto-cadastro')
@@ -297,7 +315,7 @@ def auto_cadastro():
 
 @app.route('/api/registros', methods=['GET'])
 def api_get_registros():
-    if not require_token():
+    if not require_token(admin_only=True):
         return jsonify({'success': False, 'error': 'Não autorizado'}), 401
     data = {
         'registros': ler_registros(),
@@ -342,7 +360,7 @@ def api_sync_registros():
 
         return jsonify({'success': True})
     except Exception as e:
-        print('Erro sync:', e)
+        log.error('Erro sync: %s', e)
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -367,64 +385,20 @@ def get_ocr_result(filename):
     return jsonify({'status': 'done' if result.get('done') else 'error', 'analise': result.get('analise'), 'pix_conferido': result.get('pix_conferido', False)})
 
 
-@app.route('/api/upload-form', methods=['POST'])
-def upload_comprovante_form():
-    if not require_token():
-        return _redirect_result({'success': False, 'error': 'Não autorizado', 'id': request.form.get('id', '0')})
-    registro_id = request.form.get('id', '0')
-    try:
-        if 'file' not in request.files:
-            return _redirect_result({'success': False, 'error': 'Nenhum arquivo', 'id': registro_id})
-        file = request.files['file']
-        if file.filename == '':
-            return _redirect_result({'success': False, 'error': 'Arquivo vazio', 'id': registro_id})
-        if not allowed_file(file.filename):
-            return _redirect_result({'success': False, 'error': 'Tipo não permitido', 'id': registro_id})
-        if '.' not in file.filename:
-            return _redirect_result({'success': False, 'error': 'Sem extensão', 'id': registro_id})
-
-        ext = file.filename.rsplit('.', 1)[1].lower()
-        unique_name = str(uuid.uuid4()) + '.' + ext
-        filepath = os.path.join(COMPROVANTES_DIR, unique_name)
-        file.save(filepath)
-
-        if ext in ('pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp'):
-            fn = analisar_pdf if ext == 'pdf' else analisar_imagem
-            future = ocr_executor.submit(fn, filepath)
-            future.add_done_callback(lambda f, fn=unique_name: _on_ocr_complete(f, fn))
-
-        return _redirect_result({
-            'success': True, 'id': registro_id, 'filename': unique_name,
-            'original_name': file.filename, 'analise': None, 'pix_conferido': False
-        })
-    except Exception as e:
-        print('Erro upload form:', e)
-        return _redirect_result({'success': False, 'error': 'Erro interno', 'id': registro_id})
-
-
-def _redirect_result(data):
-    js = json.dumps(data, default=str)
-    html = '<!DOCTYPE html><html><head><script>try{localStorage.setItem("upload_pending",' + json.dumps(js) + ')}catch(e){}window.location.replace("/?upload_done=1");</script></head><body></body></html>'
-    return html, 200, {'Content-Type': 'text/html; charset=utf-8'}
-
-
 @app.route('/api/upload', methods=['POST'])
 def upload_comprovante():
-    if not require_token():
+    if not require_token(admin_only=True):
         return jsonify({'success': False, 'error': 'Não autorizado'}), 401
     try:
-        def resposta(data, status=200):
-            return jsonify(data), status
         if 'file' not in request.files:
-            return resposta({'success': False, 'error': 'Nenhum arquivo enviado'}, 400)
+            return jsonify({'success': False, 'error': 'Nenhum arquivo enviado'}), 400
         file = request.files['file']
         if file.filename == '':
-            return resposta({'success': False, 'error': 'Nome de arquivo vazio'}, 400)
+            return jsonify({'success': False, 'error': 'Nome de arquivo vazio'}), 400
         if not allowed_file(file.filename):
-            return resposta({'success': False, 'error': 'Tipo de arquivo não permitido'}, 400)
-
+            return jsonify({'success': False, 'error': 'Tipo de arquivo não permitido'}), 400
         if '.' not in file.filename:
-            return resposta({'success': False, 'error': 'Arquivo sem extensão'}, 400)
+            return jsonify({'success': False, 'error': 'Arquivo sem extensão'}), 400
 
         ext = file.filename.rsplit('.', 1)[1].lower()
         unique_name = str(uuid.uuid4()) + '.' + ext
@@ -436,7 +410,7 @@ def upload_comprovante():
             future = ocr_executor.submit(fn, filepath)
             future.add_done_callback(lambda f, fn=unique_name: _on_ocr_complete(f, fn))
 
-        return resposta({
+        return jsonify({
             'success': True,
             'filename': unique_name,
             'original_name': file.filename,
@@ -444,8 +418,8 @@ def upload_comprovante():
             'pix_conferido': False
         })
     except Exception as e:
-        print('Erro no upload:', e)
-        return resposta({'success': False, 'error': 'Erro interno no servidor'}, 500)
+        log.error('Erro no upload: %s', e)
+        return jsonify({'success': False, 'error': 'Erro interno no servidor'}), 500
 
 
 @app.errorhandler(413)
@@ -455,7 +429,10 @@ def too_large(error):
 
 @app.route('/comprovantes/<filename>')
 def servir_comprovante(filename):
-    return send_file(os.path.join(COMPROVANTES_DIR, filename))
+    safe_path = os.path.realpath(os.path.join(COMPROVANTES_DIR, filename))
+    if not safe_path.startswith(os.path.realpath(COMPROVANTES_DIR) + os.sep):
+        return jsonify({'success': False, 'error': 'Acesso negado'}), 403
+    return send_file(safe_path)
 
 
 @app.route('/imagem_evento.jpeg')
@@ -559,6 +536,7 @@ if __name__ == '__main__':
     print(f'  Admin:     http://localhost:5000')
     print(f'  Auto-Cad.: http://localhost:5000/auto-cadastro')
     print(f'  Rede:      http://{local_ip}:5000')
+    print(f'  Auto-Cad. tambem: http://{local_ip}:5000/auto-cadastro')
 
     public_url = None
     if use_online:
@@ -574,8 +552,11 @@ if __name__ == '__main__':
 
     if use_prod:
         from waitress import serve
-        print('  [servidor] Waitress (produção) em http://0.0.0.0:5000')
+        print('  [servidor] Waitress (producao) em http://0.0.0.0:5000')
+        print('  [servidor] Para auto-reload, rode sem --prod')
         print('=' * 50)
         serve(app, host='0.0.0.0', port=5000, threads=16)
     else:
-        app.run(debug=False, host='0.0.0.0', port=5000)
+        print('  [servidor] Dev mode com auto-reload em http://0.0.0.0:5000')
+        print('=' * 50)
+        app.run(debug=True, host='0.0.0.0', port=5000)
