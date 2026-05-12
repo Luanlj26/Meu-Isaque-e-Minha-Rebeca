@@ -153,7 +153,7 @@ def init_db():
 @app.after_request
 def add_cors_headers(response):
     origin = request.headers.get('Origin', '')
-    public_url = os.environ.get('PUBLIC_URL', '').rstrip('/')
+    public_url = os.environ.get('PUBLIC_URL', DOMAIN_PUBLICO).rstrip('/')
     allowed = {'null'}
     allowed.add('http://localhost:5000')
     allowed.add('http://127.0.0.1:5000')
@@ -186,6 +186,7 @@ app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024
 ALLOWED_EXTENSIONS = {'pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp'}
 
 PIX_CORRETO = 'luanborges26@outlook.com'
+DOMAIN_PUBLICO = 'https://meu-isque-e-rebeca.render.com'
 
 
 _request_times = defaultdict(list)
@@ -415,13 +416,14 @@ def contar_registros():
 
 
 def _render_template(template_name, is_admin=False):
-    public_url = os.environ.get('PUBLIC_URL', '')
+    public_url = os.environ.get('PUBLIC_URL', DOMAIN_PUBLICO)
     html = open(os.path.join(TEMPLATES_DIR, template_name), 'r', encoding='utf-8').read()
     csrf_token = session.get('csrf_token', '')
     qtd_atingida = contar_registros()
     script = (
         f'<script>'
         f'window.PUBLIC_URL="{public_url}";'
+        f'window.DOMAIN="{DOMAIN_PUBLICO}";'
         f'window.CSRF_TOKEN="{csrf_token}";'
         f'window.PIX_KEY="{PIX_CORRETO}";'
         f'window.PRECO_ATE_50={PRECO_ATE_50};'
