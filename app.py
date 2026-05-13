@@ -660,6 +660,8 @@ def servir_comprovante(filename):
     safe_path = os.path.realpath(os.path.join(COMPROVANTES_DIR, filename))
     if not safe_path.startswith(os.path.realpath(COMPROVANTES_DIR) + os.sep):
         return jsonify({'success': False, 'error': 'Acesso negado'}), 403
+    if not os.path.isfile(safe_path):
+        return jsonify({'success': False, 'error': 'Arquivo não encontrado'}), 404
     return send_file(safe_path)
 
 
