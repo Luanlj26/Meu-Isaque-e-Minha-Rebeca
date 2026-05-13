@@ -665,6 +665,10 @@ def servir_comprovante(filename):
     return send_file(safe_path)
 
 
+@app.route('/favicon.ico')
+def favicon():
+    return '', 204
+
 @app.route('/imagem_evento.jpeg')
 def servir_imagem():
     return send_file(os.path.join(BASE_DIR, 'imagem_evento.jpeg'))
