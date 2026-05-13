@@ -1,7 +1,10 @@
 database.db
 comprovantes/
 api_token.txt
-# ngrok_token.txt (removido -- sem ngrok)
+secret_key.txt
+stderr.txt
+stdout.txt
+_check.py
 __pycache__/
 *.pyc
 *.pyo
