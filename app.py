@@ -51,7 +51,7 @@ app.secret_key = get_secret_key()
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE='Lax',
-    SESSION_COOKIE_SECURE=False,  # True em producao (HTTPS)
+    SESSION_COOKIE_SECURE=os.environ.get('RENDER', '') == 'true',  # True no Render (HTTPS), False local
     PERMANENT_SESSION_LIFETIME=3600,
     SESSION_REFRESH_EACH_REQUEST=False,
 )
