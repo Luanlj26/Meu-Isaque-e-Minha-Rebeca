@@ -4,7 +4,6 @@ import socket
 import uuid
 import re
 import json
-import sqlite3
 import secrets
 import threading
 import logging
@@ -14,6 +13,14 @@ from concurrent.futures import ThreadPoolExecutor
 from flask import Flask, jsonify, request, send_file, session
 from PIL import Image
 import fitz
+
+DATABASE_URL = os.environ.get('DATABASE_URL', '')
+USANDO_PG = bool(DATABASE_URL)
+if USANDO_PG:
+    import psycopg2
+    from psycopg2.extras import RealDictCursor
+else:
+    import sqlite3
 
 logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(message)s', datefmt='%H:%M:%S')
 log = logging.getLogger(__name__)
@@ -100,6 +107,8 @@ def audit_log(acao, detalhe=''):
 
 
 def backup_db():
+    if USANDO_PG:
+        return
     try:
         ts = time.strftime('%Y-%m-%d_%H-%M-%S')
         path = os.path.join(BACKUP_DIR, f'db-{ts}.db')
@@ -130,6 +139,9 @@ ocr_results_lock = threading.Lock()
 
 
 def get_db():
+    if USANDO_PG:
+        conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+        return conn
     conn = sqlite3.connect(DATABASE)
     conn.row_factory = sqlite3.Row
     conn.execute('PRAGMA journal_mode=WAL')
@@ -139,27 +151,52 @@ def get_db():
 
 def init_db():
     conn = get_db()
-    conn.executescript('''
-        CREATE TABLE IF NOT EXISTS registros (
-            id TEXT NOT NULL,
-            uuid TEXT NOT NULL DEFAULT '',
-            nome TEXT NOT NULL DEFAULT '',
-            telefone TEXT NOT NULL DEFAULT '',
-            email TEXT NOT NULL DEFAULT '',
-            quantidade_pulseiras TEXT NOT NULL DEFAULT '',
-            pagamento TEXT NOT NULL DEFAULT 'Pendente',
-            numeros_sorte TEXT NOT NULL DEFAULT '',
-            comprovante TEXT NOT NULL DEFAULT '',
-            comprovante_nome TEXT NOT NULL DEFAULT '',
-            comprovante_analise TEXT NOT NULL DEFAULT ''
-        );
-        CREATE TABLE IF NOT EXISTS excluidos (
-            id TEXT NOT NULL PRIMARY KEY
-        );
-        CREATE INDEX IF NOT EXISTS idx_registros_id ON registros(id);
-    ''')
-    conn.commit()
-    conn.close()
+    try:
+        if USANDO_PG:
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS registros (
+                    id TEXT NOT NULL,
+                    uuid TEXT NOT NULL DEFAULT '',
+                    nome TEXT NOT NULL DEFAULT '',
+                    telefone TEXT NOT NULL DEFAULT '',
+                    email TEXT NOT NULL DEFAULT '',
+                    quantidade_pulseiras TEXT NOT NULL DEFAULT '',
+                    pagamento TEXT NOT NULL DEFAULT 'Pendente',
+                    numeros_sorte TEXT NOT NULL DEFAULT '',
+                    comprovante TEXT NOT NULL DEFAULT '',
+                    comprovante_nome TEXT NOT NULL DEFAULT '',
+                    comprovante_analise TEXT NOT NULL DEFAULT ''
+                )
+            ''')
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS excluidos (
+                    id TEXT NOT NULL PRIMARY KEY
+                )
+            ''')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_registros_id ON registros(id)')
+        else:
+            conn.executescript('''
+                CREATE TABLE IF NOT EXISTS registros (
+                    id TEXT NOT NULL,
+                    uuid TEXT NOT NULL DEFAULT '',
+                    nome TEXT NOT NULL DEFAULT '',
+                    telefone TEXT NOT NULL DEFAULT '',
+                    email TEXT NOT NULL DEFAULT '',
+                    quantidade_pulseiras TEXT NOT NULL DEFAULT '',
+                    pagamento TEXT NOT NULL DEFAULT 'Pendente',
+                    numeros_sorte TEXT NOT NULL DEFAULT '',
+                    comprovante TEXT NOT NULL DEFAULT '',
+                    comprovante_nome TEXT NOT NULL DEFAULT '',
+                    comprovante_analise TEXT NOT NULL DEFAULT ''
+                );
+                CREATE TABLE IF NOT EXISTS excluidos (
+                    id TEXT NOT NULL PRIMARY KEY
+                );
+                CREATE INDEX IF NOT EXISTS idx_registros_id ON registros(id);
+            ''')
+        conn.commit()
+    finally:
+        conn.close()
 
 
 @app.after_request
@@ -350,6 +387,8 @@ def ler_excluidos():
         return []
 
 
+P = '%s' if USANDO_PG else '?'
+
 def salvar_tudo(registros_data, excluidos_data):
     conn = get_db()
     try:
@@ -372,8 +411,9 @@ def salvar_tudo(registros_data, excluidos_data):
             for item in registros_data
         ]
         if rows:
+            placeholders = ', '.join([P] * 11)
             conn.executemany(
-                'INSERT INTO registros (id, uuid, nome, telefone, email, quantidade_pulseiras, pagamento, numeros_sorte, comprovante, comprovante_nome, comprovante_analise) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                f'INSERT INTO registros (id, uuid, nome, telefone, email, quantidade_pulseiras, pagamento, numeros_sorte, comprovante, comprovante_nome, comprovante_analise) VALUES ({placeholders})',
                 rows
             )
 
@@ -383,7 +423,7 @@ def salvar_tudo(registros_data, excluidos_data):
 
         conn.execute('DELETE FROM excluidos')
         if merged:
-            conn.executemany('INSERT INTO excluidos (id) VALUES (?)', [(eid,) for eid in merged])
+            conn.executemany(f'INSERT INTO excluidos (id) VALUES ({P})', [(eid,) for eid in merged])
 
         conn.commit()
     except Exception:
@@ -411,9 +451,9 @@ def salvar_tudo(registros_data, excluidos_data):
 def contar_registros():
     try:
         conn = get_db()
-        count = conn.execute('SELECT COUNT(*) FROM registros').fetchone()[0]
+        row = conn.execute('SELECT COUNT(*) AS qtd FROM registros').fetchone()
         conn.close()
-        return count
+        return row['qtd']
     except Exception as e:
         log.warning('Erro ao contar registros: %s', e)
         return 0
