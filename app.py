@@ -14,6 +14,9 @@ from flask import Flask, jsonify, request, send_file, session
 from PIL import Image
 import fitz
 
+logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(message)s', datefmt='%H:%M:%S')
+log = logging.getLogger(__name__)
+
 import sqlite3
 
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
@@ -26,9 +29,6 @@ if USANDO_PG:
     except Exception as e:
         log.warning('psycopg2 nao disponivel, usando SQLite: %s', e)
         USANDO_PG = False
-
-logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(message)s', datefmt='%H:%M:%S')
-log = logging.getLogger(__name__)
 
 try:
     import pytesseract
@@ -146,7 +146,7 @@ ocr_results_lock = threading.Lock()
 def get_db():
     if USANDO_PG:
         try:
-            return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor, connect_timeout=5)
+            return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor, connect_timeout=3, keepalives_idle=5, keepalives_interval=2)
         except Exception as e:
             log.warning('Erro ao conectar PostgreSQL: %s', e)
     conn = sqlite3.connect(DATABASE)
@@ -160,7 +160,8 @@ def init_db():
     conn = get_db()
     try:
         if USANDO_PG:
-            conn.execute('''
+            cur = conn.cursor()
+            cur.execute('''
                 CREATE TABLE IF NOT EXISTS registros (
                     id TEXT NOT NULL,
                     uuid TEXT NOT NULL DEFAULT '',
@@ -175,12 +176,12 @@ def init_db():
                     comprovante_analise TEXT NOT NULL DEFAULT ''
                 )
             ''')
-            conn.execute('''
+            cur.execute('''
                 CREATE TABLE IF NOT EXISTS excluidos (
                     id TEXT NOT NULL PRIMARY KEY
                 )
             ''')
-            conn.execute('CREATE INDEX IF NOT EXISTS idx_registros_id ON registros(id)')
+            cur.execute('CREATE INDEX IF NOT EXISTS idx_registros_id ON registros(id)')
         else:
             conn.executescript('''
                 CREATE TABLE IF NOT EXISTS registros (
@@ -370,7 +371,7 @@ def analisar_pdf(filepath):
 def ler_registros():
     try:
         conn = get_db()
-        rows = conn.execute('SELECT * FROM registros').fetchall()
+        rows = conn.cursor().execute('SELECT * FROM registros').fetchall()
         conn.close()
         result = []
         for row in rows:
@@ -386,7 +387,7 @@ def ler_registros():
 def ler_excluidos():
     try:
         conn = get_db()
-        rows = conn.execute('SELECT id FROM excluidos').fetchall()
+        rows = conn.cursor().execute('SELECT id FROM excluidos').fetchall()
         conn.close()
         return [row['id'] for row in rows]
     except Exception as e:
@@ -399,7 +400,8 @@ P = '%s' if USANDO_PG else '?'
 def salvar_tudo(registros_data, excluidos_data):
     conn = get_db()
     try:
-        conn.execute('DELETE FROM registros')
+        cur = conn.cursor()
+        cur.execute('DELETE FROM registros')
 
         rows = [
             (
@@ -419,18 +421,18 @@ def salvar_tudo(registros_data, excluidos_data):
         ]
         if rows:
             placeholders = ', '.join([P] * 11)
-            conn.executemany(
+            cur.executemany(
                 f'INSERT INTO registros (id, uuid, nome, telefone, email, quantidade_pulseiras, pagamento, numeros_sorte, comprovante, comprovante_nome, comprovante_analise) VALUES ({placeholders})',
                 rows
             )
 
-        excs_existing = set(str(r['id']) for r in conn.execute('SELECT id FROM excluidos').fetchall())
+        excs_existing = set(str(r['id']) for r in cur.execute('SELECT id FROM excluidos').fetchall())
         excs_incoming = set(str(x) for x in excluidos_data)
         merged = excs_existing | excs_incoming
 
-        conn.execute('DELETE FROM excluidos')
+        cur.execute('DELETE FROM excluidos')
         if merged:
-            conn.executemany(f'INSERT INTO excluidos (id) VALUES ({P})', [(eid,) for eid in merged])
+            cur.executemany(f'INSERT INTO excluidos (id) VALUES ({P})', [(eid,) for eid in merged])
 
         conn.commit()
     except Exception:
@@ -458,7 +460,7 @@ def salvar_tudo(registros_data, excluidos_data):
 def contar_registros():
     try:
         conn = get_db()
-        row = conn.execute('SELECT COUNT(*) AS qtd FROM registros').fetchone()
+        row = conn.cursor().execute('SELECT COUNT(*) AS qtd FROM registros').fetchone()
         conn.close()
         return row['qtd']
     except Exception as e:
