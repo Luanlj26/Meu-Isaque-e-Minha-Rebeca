@@ -389,9 +389,12 @@ def ler_registros():
 def ler_registros_ativos():
     registros = ler_registros()
     excluidos = set(ler_excluidos())
-    return [r for r in registros
-            if str(r.get('_uuid', '')) not in excluidos
-            and str(r.get('id', '')) not in excluidos]
+    ativos = [r for r in registros
+              if str(r.get('_uuid', '')) not in excluidos
+              and str(r.get('id', '')) not in excluidos]
+    for i, r in enumerate(ativos, start=1):
+        r['id'] = str(i)
+    return ativos
 
 
 def ler_excluidos():
@@ -693,6 +696,10 @@ def api_sync_registros():
         existing = [r for r in existing
                     if str(r.get('_uuid', '')) not in excluidos_set
                     and str(r.get('id', '')) not in excluidos_set]
+
+        # Resequence IDs to be sequential starting from 1
+        for i, r in enumerate(existing, start=1):
+            r['id'] = str(i)
 
         # Persist
         salvar_tudo(existing, list(excluidos_set))
