@@ -14,8 +14,11 @@ from flask import Flask, jsonify, request, send_file, session
 from PIL import Image
 import fitz
 
+import sqlite3
+
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
 USANDO_PG = bool(DATABASE_URL)
+P = '?'
 if USANDO_PG:
     try:
         import psycopg2
@@ -23,9 +26,6 @@ if USANDO_PG:
     except Exception as e:
         log.warning('psycopg2 nao disponivel, usando SQLite: %s', e)
         USANDO_PG = False
-        import sqlite3
-else:
-    import sqlite3
 
 logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(message)s', datefmt='%H:%M:%S')
 log = logging.getLogger(__name__)
