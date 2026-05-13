@@ -386,6 +386,14 @@ def ler_registros():
         return []
 
 
+def ler_registros_ativos():
+    registros = ler_registros()
+    excluidos = set(ler_excluidos())
+    return [r for r in registros
+            if str(r.get('_uuid', '')) not in excluidos
+            and str(r.get('id', '')) not in excluidos]
+
+
 def ler_excluidos():
     try:
         conn = get_db()
@@ -397,6 +405,20 @@ def ler_excluidos():
     except Exception as e:
         print('Erro ler excluidos:', e)
         return []
+
+
+def calcular_proximo_numero(registros=None):
+    if registros is None:
+        registros = ler_registros_ativos()
+    max_num = 0
+    for r in registros:
+        if r.get('numeros_sorte'):
+            for n in r['numeros_sorte'].split(','):
+                try:
+                    max_num = max(max_num, int(n.strip()))
+                except:
+                    pass
+    return max_num + 1
 
 
 P = '%s' if USANDO_PG else '?'
@@ -452,6 +474,18 @@ def salvar_tudo(registros_data, excluidos_data):
             c = str(item.get('comprovante', ''))
             if c:
                 comprovantes_ativos.add(c)
+        # Also read from DB (already inserted) to never delete active comprovantes
+        try:
+            conn2 = get_db()
+            cur2 = conn2.cursor()
+            cur2.execute('SELECT comprovante FROM registros')
+            for row in cur2.fetchall():
+                c = str(row['comprovante'])
+                if c:
+                    comprovantes_ativos.add(c)
+            conn2.close()
+        except Exception:
+            pass
         for fname in os.listdir(COMPROVANTES_DIR):
             if fname not in comprovantes_ativos:
                 try:
@@ -539,7 +573,7 @@ def api_get_registros():
     if not require_role(admin_only=True):
         return jsonify({'success': False, 'error': 'Não autorizado'}), 401
     data = {
-        'registros': ler_registros(),
+        'registros': ler_registros_ativos(),
         'excluidos': ler_excluidos()
     }
     resp = jsonify(data)
@@ -577,54 +611,100 @@ def api_sync_registros():
 
         origem_role = get_current_role(default_to='auto_cadastro')
         is_auto = origem_role == 'auto_cadastro'
+
+        # Always force Pendente for auto-cadastro submissions
         if is_auto:
             for item in regs:
                 item['pagamento'] = 'Pendente'
 
-            existing = ler_registros()
-            existing_uuids = set(r.get('_uuid', '') for r in existing if r.get('_uuid'))
-            excluidos_set = set(ler_excluidos())
+        # Read current DB state
+        existing = ler_registros()
+        existing_by_uuid = {r.get('_uuid', ''): r for r in existing if r.get('_uuid')}
+        excluidos_set = set(ler_excluidos())
 
-            max_num = 0
-            for r in existing:
-                if r.get('numeros_sorte'):
-                    for n in r['numeros_sorte'].split(','):
-                        try:
-                            max_num = max(max_num, int(n.strip()))
-                        except:
-                            pass
+        max_num = 0
+        max_id = 0
+        for r in existing:
+            if r.get('numeros_sorte'):
+                for n in r['numeros_sorte'].split(','):
+                    try:
+                        max_num = max(max_num, int(n.strip()))
+                    except:
+                        pass
+            try:
+                max_id = max(max_id, int(r.get('id', '0') or '0'))
+            except:
+                pass
 
-            max_id = 0
-            for r in existing:
-                try:
-                    max_id = max(max_id, int(r.get('id', '0') or '0'))
-                except:
-                    pass
-
-            for item in regs:
-                item_uuid = item.get('_uuid', '')
-                if item_uuid and item_uuid not in existing_uuids and item_uuid not in excluidos_set:
+        # Merge incoming records — UPDATE if UUID exists, APPEND if new
+        for item in regs:
+            item_uuid = item.get('_uuid', '')
+            if item_uuid and item_uuid in existing_by_uuid:
+                idx = next(i for i, r in enumerate(existing) if r.get('_uuid') == item_uuid)
+                for key in ('comprovante', 'comprovante_nome', 'comprovante_analise', 'numeros_sorte'):
+                    if key not in item or not item.get(key):
+                        item[key] = existing[idx].get(key, '')
+                if is_auto:
+                    item['pagamento'] = 'Pendente'
+                else:
+                    if 'pagamento' not in item or not item.get('pagamento'):
+                        item['pagamento'] = existing[idx].get('pagamento', 'Pendente')
+                existing[idx] = item
+            elif item_uuid and item_uuid not in excluidos_set:
+                if not item.get('id'):
+                    item['id'] = str(max_id + 1)
+                    max_id += 1
+                else:
+                    try: max_id = max(max_id, int(str(item.get('id', '0'))))
+                    except: pass
+                if not item.get('numeros_sorte'):
                     qtd = int(item.get('quantidade_pulseiras', '0') or 0)
                     nums = list(range(max_num + 1, max_num + 1 + qtd))
                     item['numeros_sorte'] = ','.join(str(n) for n in nums)
+                    max_num += qtd
+                else:
+                    for n in item['numeros_sorte'].split(','):
+                        try: max_num = max(max_num, int(n.strip()))
+                        except: pass
+                existing.append(item)
+            elif not item_uuid:
+                item['_uuid'] = str(uuid.uuid4())
+                if not item.get('id'):
                     item['id'] = str(max_id + 1)
                     max_id += 1
+                else:
+                    try: max_id = max(max_id, int(str(item.get('id', '0'))))
+                    except: pass
+                if not item.get('numeros_sorte'):
+                    qtd = int(item.get('quantidade_pulseiras', '0') or 0)
+                    nums = list(range(max_num + 1, max_num + 1 + qtd))
+                    item['numeros_sorte'] = ','.join(str(n) for n in nums)
                     max_num += qtd
-                    existing.append(item)
+                else:
+                    for n in item['numeros_sorte'].split(','):
+                        try: max_num = max(max_num, int(n.strip()))
+                        except: pass
+                existing.append(item)
 
-            regs = existing
-            excs = list(excluidos_set)
+        # Process excluidos — add to set and remove from registros
+        for exc in excs:
+            exc_str = str(exc)
+            excluidos_set.add(exc_str)
+        existing = [r for r in existing
+                    if str(r.get('_uuid', '')) not in excluidos_set
+                    and str(r.get('id', '')) not in excluidos_set]
 
-        salvar_tudo(regs, excs)
-
-        audit_log('sync', f'{len(regs)} registros, {len(excs)} excluidos, auto={is_auto}')
+        # Persist
+        salvar_tudo(existing, list(excluidos_set))
         backup_db()
+        audit_log('sync', f'{len(existing)} registros, {len(excluidos_set)} excluidos, origem={origem_role}')
 
-        resp = {'success': True}
-        if is_auto:
-            resp['registros'] = regs
-            resp['excluidos'] = excs
-        return jsonify(resp)
+        return jsonify({
+            'success': True,
+            'registros': existing,
+            'excluidos': list(excluidos_set),
+            'proximo_numero': calcular_proximo_numero(existing),
+        })
     except Exception as e:
         log.error('Erro sync: %s', e)
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -727,20 +807,12 @@ def api_sync_auto():
     if not require_role():
         return jsonify({'success': False, 'error': 'Não autorizado'}), 401
     try:
-        registros = ler_registros()
+        registros = ler_registros_ativos()
         excluidos = ler_excluidos()
-        max_num = 0
-        for r in registros:
-            if r.get('numeros_sorte'):
-                for n in r['numeros_sorte'].split(','):
-                    try:
-                        max_num = max(max_num, int(n.strip()))
-                    except:
-                        pass
         return jsonify({
             'success': True,
             'total': len(registros),
-            'proximo_numero': max_num + 1,
+            'proximo_numero': calcular_proximo_numero(registros),
             'registros': registros,
             'excluidos': excluidos,
         })

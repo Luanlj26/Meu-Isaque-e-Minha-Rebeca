@@ -341,26 +341,6 @@
     </div>
 
     <script>
-        const STORAGE_KEY = 'evento_junho_registros';
-        const PROXIMO_NUMERO_KEY = 'evento_junho_proximo_numero';
-        const MAX_NUMEROS = 300;
-
-        function getRegistros() {
-            try {
-                const data = localStorage.getItem(STORAGE_KEY);
-                return data ? JSON.parse(data) : [];
-            } catch { return []; }
-        }
-
-        function getIdsExcluidos() {
-            try { return JSON.parse(localStorage.getItem('evento_junho_excluidos') || '[]'); }
-            catch { return []; }
-        }
-
-        function setIdsExcluidos(ids) {
-            localStorage.setItem('evento_junho_excluidos', JSON.stringify(ids));
-        }
-
         function generateUUID() {
             var bytes = new Uint8Array(16);
             crypto.getRandomValues(bytes);
@@ -377,110 +357,6 @@
                 headers['Authorization'] = 'Bearer ' + pageToken;
             }
             return headers;
-        }
-
-        async function saveRegistros(data) {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-            try {
-                var resp = await fetch('/salvar', {
-                    method: 'POST',
-                    headers: getAuthHeaders(),
-                    body: JSON.stringify({
-                        registros: data,
-                        excluidos: getIdsExcluidos()
-                    })
-                });
-                if (resp.ok) {
-                    try {
-                        var body = await resp.json();
-                        if (body && body.registros) {
-                            localStorage.setItem(STORAGE_KEY, JSON.stringify(body.registros));
-                            if (body.excluidos) {
-                                localStorage.setItem('evento_junho_excluidos', JSON.stringify(body.excluidos));
-                            }
-                        }
-                    } catch (jsonErr) {
-                        // resposta nao-JSON, dados ja salvos localmente
-                    }
-                } else {
-                    mostrarMensagem('Erro ao sincronizar com servidor (HTTP ' + resp.status + '). Recarregue a p\u00e1gina.', 'error');
-                }
-            } catch(e) {
-                mostrarMensagem('Erro de rede ao sincronizar. Dados salvos localmente.', 'error');
-            }
-        }
-
-        function resequenceRegistros(registros) {
-            var maxId = 0;
-            var maxNum = 0;
-            for (var i = 0; i < registros.length; i++) {
-                var id = parseInt(registros[i].id, 10);
-                if (!isNaN(id) && id > maxId) maxId = id;
-                if (registros[i].numeros_sorte) {
-                    var parts = registros[i].numeros_sorte.split(',');
-                    for (var j = 0; j < parts.length; j++) {
-                        var num = parseInt(parts[j].trim(), 10);
-                        if (!isNaN(num) && num > maxNum) maxNum = num;
-                    }
-                }
-                if (!registros[i]._uuid) registros[i]._uuid = generateUUID();
-            }
-            for (var i = 0; i < registros.length; i++) {
-                if (!registros[i].id) {
-                    maxId++;
-                    registros[i].id = String(maxId);
-                }
-                if (!registros[i].numeros_sorte) {
-                    var qtd = parseInt(registros[i].quantidade_pulseiras, 10) || 0;
-                    var nums = [];
-                    for (var j = 0; j < qtd; j++) {
-                        maxNum++;
-                        nums.push(maxNum);
-                    }
-                    registros[i].numeros_sorte = nums.join(',');
-                }
-            }
-            setProximoNumero(maxNum + 1);
-            return registros;
-        }
-
-        function getProximoNumero() {
-            var val = localStorage.getItem(PROXIMO_NUMERO_KEY);
-            var num = parseInt(val, 10);
-            return !isNaN(num) && num > 0 ? num : 1;
-        }
-
-        function setProximoNumero(val) {
-            localStorage.setItem(PROXIMO_NUMERO_KEY, String(val));
-        }
-
-        function recalcularProximoNumero() {
-            var registros = getRegistros();
-            var maxNum = 0;
-            for (var i = 0; i < registros.length; i++) {
-                var r = registros[i];
-                if (r.numeros_sorte) {
-                    var parts = r.numeros_sorte.split(',');
-                    for (var j = 0; j < parts.length; j++) {
-                        var num = parseInt(parts[j].trim(), 10);
-                        if (!isNaN(num) && num > maxNum) maxNum = num;
-                    }
-                }
-            }
-            var correto = maxNum + 1;
-            var atual = getProximoNumero();
-            if (atual !== correto) {
-                setProximoNumero(correto);
-            }
-        }
-
-        function numerosDisponiveis(qtd) {
-            var inicio = getProximoNumero();
-            var fim = inicio + qtd - 1;
-            if (fim > MAX_NUMEROS) return null;
-            var nums = [];
-            for (var i = inicio; i <= fim; i++) nums.push(i);
-            return nums;
         }
 
         var _msgTimeouts = [];
@@ -553,14 +429,8 @@
             display.style.display = 'block';
             display.textContent = 'Valor total: R$ ' + valorTotal.toFixed(2);
 
-            const nums = numerosDisponiveis(qtd);
-            if (!nums) {
-                numsDisplay.innerHTML = '<span style="color:#dc3545;font-weight:600;">Números esgotados! Apenas ' + (MAX_NUMEROS - getProximoNumero() + 1) + ' números disponíveis.</span>';
-                numsDisplay.style.color = '#dc3545';
-            } else {
-                numsDisplay.innerHTML = nums.map(n => '<span class="badge-numeros">' + n + '</span>').join(' ');
-                numsDisplay.style.color = '#333';
-            }
+            numsDisplay.innerHTML = '<span style="color:#666;">Números serão atribuídos pelo sistema</span>';
+            numsDisplay.style.color = '#666';
         }
 
         window.onerror = function(msg, url, line) {
@@ -574,79 +444,10 @@
             }
         };
 
-        async function syncFromServer() {
-            try {
-                var headers = getAuthHeaders();
-                var resp = await fetch('/api/sync', { headers: headers });
-                if (resp.ok) {
-                    var body = await resp.json();
-                    if (body.success && body.registros) {
-                        localStorage.setItem(STORAGE_KEY, JSON.stringify(body.registros));
-                        if (body.proximo_numero) {
-                            setProximoNumero(body.proximo_numero);
-                        }
-                        if (body.excluidos) {
-                            localStorage.setItem('evento_junho_excluidos', JSON.stringify(body.excluidos));
-                        }
-                    }
-                }
-            } catch(e) {
-                console.warn('syncFromServer: erro', e);
-            }
-        }
-
         document.addEventListener('DOMContentLoaded', function() {
-            syncFromServer().then(function() {
-                recalcularProximoNumero();
-            });
             var pixEl = document.getElementById('pix-chave-display');
             if (pixEl && window.PIX_KEY) pixEl.textContent = window.PIX_KEY;
         });
-
-        // Sincronização periódica a cada 30s
-        setInterval(function() {
-            syncFromServer().then(function() {
-                recalcularProximoNumero();
-            });
-        }, 30000);
-
-        // Sincronização cross-tab
-        window.addEventListener('storage', function(e) {
-            if (e.key === STORAGE_KEY || e.key === 'evento_junho_excluidos') {
-                console.log('storage event detected, re-syncing from server');
-                syncFromServer().then(function() {
-                    recalcularProximoNumero();
-                });
-            }
-        });
-
-        function getMaxLocalId() {
-            var registros = getRegistros();
-            var max = 0;
-            for (var i = 0; i < registros.length; i++) {
-                var id = parseInt(registros[i].id, 10);
-                if (!isNaN(id) && id > max) max = id;
-            }
-            return max;
-        }
-
-        function getNextNumeros(qtd) {
-            var registros = getRegistros();
-            var maxNum = 0;
-            for (var i = 0; i < registros.length; i++) {
-                if (registros[i].numeros_sorte) {
-                    var parts = registros[i].numeros_sorte.split(',');
-                    for (var j = 0; j < parts.length; j++) {
-                        var num = parseInt(parts[j].trim(), 10);
-                        if (!isNaN(num) && num > maxNum) maxNum = num;
-                    }
-                }
-            }
-            if (maxNum + qtd > MAX_NUMEROS) return null;
-            var nums = [];
-            for (var k = 1; k <= qtd; k++) nums.push(maxNum + k);
-            return nums;
-        }
 
         async function salvarRegistro(event) {
             event.preventDefault();
@@ -659,38 +460,40 @@
             };
 
             if (!dados.nome || !dados.telefone || !dados.email) {
-                mostrarMensagem('Preencha todos os campos obrigat\u00f3rios (Nome, Telefone e Email).', 'error');
+                mostrarMensagem('Preencha todos os campos obrigatórios (Nome, Telefone e Email).', 'error');
                 return;
             }
 
-            var qtd = parseInt(dados.quantidade_pulseiras, 10) || 0;
-            var nums = qtd > 0 ? getNextNumeros(qtd) : [];
-            if (qtd > 0 && !nums) {
-                mostrarMensagem('N\u00fameros da sorte esgotados! Apenas ' + (MAX_NUMEROS - getProximoNumero() + 1) + ' dispon\u00edveis.', 'error');
-                return;
-            }
             var record = {
+                ...dados,
                 pagamento: 'Pendente',
                 _uuid: generateUUID(),
-                id: String(getMaxLocalId() + 1),
-                numeros_sorte: nums.join(',')
             };
-            record.nome = dados.nome;
-            record.telefone = dados.telefone;
-            record.email = dados.email;
-            record.quantidade_pulseiras = dados.quantidade_pulseiras;
 
-            let registros = getRegistros();
-            registros.push(record);
-            await saveRegistros(registros);
+            try {
+                var resp = await fetch('/salvar', {
+                    method: 'POST',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify({ registros: [record], excluidos: [] })
+                });
+                if (resp.ok) {
+                    var body = await resp.json();
+                    if (body.success && body.registros) {
+                        var myRecord = body.registros.find(function(r) { return r._uuid === record._uuid; });
+                        var displayId = myRecord ? myRecord.id : '—';
+                        mostrarMensagem('Cadastro realizado com sucesso! Seu número é #' + displayId + '. Aguarde a confirmação do organizador.', 'success');
+                    } else {
+                        mostrarMensagem('Erro ao cadastrar. Tente novamente.', 'error');
+                    }
+                } else {
+                    var errBody = await resp.json().catch(function() { return {}; });
+                    mostrarMensagem(errBody.error || 'Erro ao cadastrar (HTTP ' + resp.status + '). Tente novamente.', 'error');
+                }
+            } catch(e) {
+                mostrarMensagem('Erro de rede ao cadastrar. Verifique sua conexão.', 'error');
+            }
 
-            var registrosAtualizados = getRegistros();
-            var rec = registrosAtualizados.find(function(r) { return r._uuid === record._uuid; });
-            var displayId = rec ? rec.id : record.id;
-
-            mostrarMensagem('Cadastro realizado com sucesso! Seu n\u00famero \u00e9 #' + displayId + '. Aguarde a confirma\u00e7\u00e3o do organizador.', 'success');
             limparFormulario();
-
             setTimeout(function() {
                 voltarInicio();
             }, 2000);
@@ -702,7 +505,7 @@
             document.getElementById('email').value = '';
             document.getElementById('quantidade_pulseiras').value = '';
             document.getElementById('valor-pulseiras-display').style.display = 'none';
-            document.getElementById('numeros-automaticos').innerHTML = 'Defina a quantidade de pulseiras para gerar os n\u00fameros';
+            document.getElementById('numeros-automaticos').innerHTML = 'Defina a quantidade de pulseiras para gerar os números';
             document.getElementById('numeros-automaticos').style.color = '#888';
         }
     </script>

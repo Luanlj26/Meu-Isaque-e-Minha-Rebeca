@@ -952,25 +952,24 @@
     </div>
 
     <script>
-        const STORAGE_KEY = 'evento_junho_registros';
         let todosRegistros = [];
 
+        let todosExcluidos = [];
+
         function getRegistros() {
-            try {
-                const data = localStorage.getItem(STORAGE_KEY);
-                return data ? JSON.parse(data) : [];
-            } catch {
-                return [];
-            }
+            return todosRegistros || [];
+        }
+
+        function setRegistros(data) {
+            todosRegistros = data || [];
         }
 
         function getIdsExcluidos() {
-            try { return JSON.parse(localStorage.getItem('evento_junho_excluidos') || '[]'); }
-            catch { return []; }
+            return todosExcluidos || [];
         }
 
         function setIdsExcluidos(ids) {
-            localStorage.setItem('evento_junho_excluidos', JSON.stringify(ids));
+            todosExcluidos = ids || [];
         }
 
         function getAuthHeaders(extra) {
@@ -989,7 +988,6 @@
         }
 
         async function saveRegistros(data) {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
             try {
                 const resp = await fetch('/salvar', {
                     method: 'POST',
@@ -1002,7 +1000,8 @@
                 if (resp.ok) {
                     const body = await resp.json();
                     if (body && body.registros) {
-                        localStorage.setItem(STORAGE_KEY, JSON.stringify(body.registros));
+                        setRegistros(body.registros);
+                        if (body.excluidos) setIdsExcluidos(body.excluidos);
                     }
                 }
             } catch(e) {
@@ -1027,75 +1026,7 @@
             return hex.substr(0, 8) + '-' + hex.substr(8, 4) + '-' + hex.substr(12, 4) + '-' + hex.substr(16, 4) + '-' + hex.substr(20, 12);
         }
 
-        function resequenceRegistros(registros) {
-            let maxId = 0;
-            let maxNum = 0;
-            for (let i = 0; i < registros.length; i++) {
-                const id = parseInt(registros[i].id, 10);
-                if (!isNaN(id) && id > maxId) maxId = id;
-                if (registros[i].numeros_sorte) {
-                    for (const n of registros[i].numeros_sorte.split(',')) {
-                        const num = parseInt(n.trim(), 10);
-                        if (!isNaN(num) && num > maxNum) maxNum = num;
-                    }
-                }
-                if (!registros[i]._uuid) registros[i]._uuid = generateUUID();
-            }
-            for (let i = 0; i < registros.length; i++) {
-                if (!registros[i].id) {
-                    maxId++;
-                    registros[i].id = String(maxId);
-                }
-                if (!registros[i].numeros_sorte) {
-                    const qtd = parseInt(registros[i].quantidade_pulseiras, 10) || 0;
-                    const nums = [];
-                    for (let j = 0; j < qtd; j++) {
-                        maxNum++;
-                        nums.push(maxNum);
-                    }
-                    registros[i].numeros_sorte = nums.join(',');
-                }
-            }
-            setProximoNumero(maxNum + 1);
-            return registros;
-        }
 
-        function recalcularProximoNumero() {
-            const registros = getRegistros();
-            let maxNum = 0;
-            for (const r of registros) {
-                if (r.numeros_sorte) {
-                    for (const n of r.numeros_sorte.split(',')) {
-                        const num = parseInt(n.trim(), 10);
-                        if (!isNaN(num) && num > maxNum) maxNum = num;
-                    }
-                }
-            }
-            const correto = maxNum + 1;
-            const atual = getProximoNumero();
-            if (atual !== correto) {
-                setProximoNumero(correto);
-            }
-        }
-
-        function getProximoNumero() {
-            const val = localStorage.getItem('evento_junho_proximo_numero');
-            const num = parseInt(val, 10);
-            return !isNaN(num) && num > 0 ? num : 1;
-        }
-
-        function setProximoNumero(val) {
-            localStorage.setItem('evento_junho_proximo_numero', String(val));
-        }
-
-        function numerosDisponiveis(qtd) {
-            const inicio = getProximoNumero();
-            const fim = inicio + qtd - 1;
-            if (fim > 300) return null;
-            const nums = [];
-            for (let i = inicio; i <= fim; i++) nums.push(i);
-            return nums;
-        }
 
         function switchTab(tab) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
@@ -1164,34 +1095,12 @@
 
             try {
                 const resp = await fetch('/dados', { cache: 'no-store', headers: getAuthHeaders() });
-                console.log('carregarRegistros: /dados status=' + resp.status);
                 if (resp.status === 401) {
-                    mostrarMensagem('Erro de autentica\u00e7\u00e3o. Token inv\u00e1lido. Reinicie o servidor.', 'error');
+                    mostrarMensagem('Erro de autenticação. Token inválido. Reinicie o servidor.', 'error');
                 } else if (resp.ok) {
                     const body = await resp.json();
-                    const serverRegistros = body.registros || body;
-                    console.log('carregarRegistros: servidor retornou ' + (Array.isArray(serverRegistros) ? serverRegistros.length : 'invalido') + ' registros');
-
-                    if (Array.isArray(serverRegistros)) {
-                        const serverUuids = new Set(serverRegistros.map(function(r) { return r._uuid; }));
-                        const serverExcluidos = new Set(body.excluidos || []);
-                        const localExcluidos = new Set(getIdsExcluidos().map(function(id) { return String(id); }));
-                        let merged = serverRegistros.filter(function(r) {
-                            return !localExcluidos.has(String(r._uuid)) && !localExcluidos.has(String(r.id));
-                        });
-                        const localData = getRegistros();
-                        for (const r of localData) {
-                            if (r._uuid && !serverUuids.has(r._uuid) && !serverExcluidos.has(r._uuid) && !serverExcluidos.has(String(r.id))) {
-                                merged.push(r);
-                            }
-                        }
-
-                        merged = resequenceRegistros(merged);
-                        localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
-                        if (body.excluidos) {
-                            localStorage.setItem('evento_junho_excluidos', JSON.stringify(body.excluidos));
-                        }
-                    }
+                    setRegistros(Array.isArray(body.registros) ? body.registros : []);
+                    if (body.excluidos) setIdsExcluidos(body.excluidos);
                     syncStatus = 'servidor';
                 }
             } catch(e) {
@@ -1199,13 +1108,10 @@
             }
             atualizarSyncStatus();
 
-            todosRegistros = getRegistros();
             if (!silent) {
                 document.getElementById('loading-listagem').style.display = 'none';
-                filtrarRegistros();
-            } else {
-                filtrarRegistros();
             }
+            filtrarRegistros();
         }
 
         // Auto-refresh silencioso a cada 8 segundos
@@ -1367,14 +1273,8 @@
             display.style.display = 'block';
             display.textContent = 'Valor total: R$ ' + valorTotal.toFixed(2);
 
-            const nums = numerosDisponiveis(qtd);
-            if (!nums) {
-                numsDisplay.innerHTML = '<span style="color:#dc3545;font-weight:600;">Números esgotados! Apenas ' + (300 - getProximoNumero() + 1) + ' números disponíveis.</span>';
-                numsDisplay.style.color = '#dc3545';
-            } else {
-                numsDisplay.innerHTML = nums.map(n => '<span class="badge-numeros">' + n + '</span>').join(' ');
-                numsDisplay.style.color = '#333';
-            }
+            numsDisplay.innerHTML = '<span style="color:#666;">Números serão atribuídos pelo sistema ao salvar</span>';
+            numsDisplay.style.color = '#666';
         }
 
         function copiarPix() {
@@ -1409,7 +1309,6 @@
             if (typeof XLSX === 'undefined') {
                 mostrarMensagem('Biblioteca XLSX não carregada. Import/Export Excel não estará disponível.', 'error');
             }
-            recalcularProximoNumero();
             carregarContagem();
             carregarRegistros();
 
@@ -1421,33 +1320,7 @@
             if (pixUpload) pixUpload.textContent = pixKey;
         });
 
-        // Sincronização cross-tab: quando outra aba alterar localStorage
-        window.addEventListener('storage', function(e) {
-            if (e.key === STORAGE_KEY || e.key === 'evento_junho_excluidos') {
-                console.log('storage event detected:', e.key, 'was updated by another tab');
-                carregarRegistros(true);
-            }
-        });
 
-        async function syncFromServerBeforeAction() {
-            try {
-                const resp = await fetch('/api/sync', { cache: 'no-store', headers: getAuthHeaders() });
-                if (resp.ok) {
-                    const body = await resp.json();
-                    if (body.success && body.registros) {
-                        localStorage.setItem(STORAGE_KEY, JSON.stringify(body.registros));
-                        if (body.excluidos) {
-                            localStorage.setItem('evento_junho_excluidos', JSON.stringify(body.excluidos));
-                        }
-                        if (body.proximo_numero) {
-                            setProximoNumero(body.proximo_numero);
-                        }
-                    }
-                }
-            } catch(e) {
-                console.warn('syncFromServerBeforeAction: erro', e);
-            }
-        }
 
         async function salvarRegistro(event) {
             event.preventDefault();
@@ -1464,28 +1337,22 @@
                 return;
             }
 
-            await syncFromServerBeforeAction();
-            let registros = getRegistros();
-
+            let record;
             if (editId) {
-                const idx = registros.findIndex(r => r.id == editId);
-                if (idx !== -1) {
-                    registros[idx] = { ...registros[idx], ...dados, pagamento: registros[idx].pagamento || 'Pendente' };
-                }
+                const existing = todosRegistros.find(r => r.id == editId);
+                if (!existing) return;
+                record = { ...existing, ...dados };
                 mostrarMensagem('Registro editado com sucesso!', 'success');
             } else {
-                const record = {
+                record = {
+                    ...dados,
                     pagamento: 'Pendente',
-                    ...dados
+                    _uuid: generateUUID(),
                 };
-                registros.push(record);
                 mostrarMensagem('Cadastro realizado com sucesso!', 'success');
             }
-            registros = resequenceRegistros(registros);
 
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(registros));
             limparFormulario();
-
             document.querySelectorAll('.tab-content').forEach(function(el) { el.classList.remove('active'); });
             document.querySelectorAll('.tab-btn').forEach(function(el) { el.classList.remove('active'); });
             document.getElementById('tab-listagem').classList.add('active');
@@ -1493,21 +1360,21 @@
                 if (el.textContent.includes('Listagem')) el.classList.add('active');
             });
             limparFormulario();
-            document.getElementById('loading-listagem').style.display = 'none';
-            todosRegistros = getRegistros();
-            filtrarRegistros();
 
             try {
-                await fetch('/salvar', {
+                const resp = await fetch('/salvar', {
                     method: 'POST',
                     headers: getAuthHeaders(),
-                    body: JSON.stringify({
-                        registros: registros,
-                        excluidos: getIdsExcluidos()
-                    })
+                    body: JSON.stringify({ registros: [record], excluidos: [] })
                 });
-                await carregarRegistros();
+                if (resp.ok) {
+                    const body = await resp.json();
+                    if (body.registros) setRegistros(body.registros);
+                    if (body.excluidos) setIdsExcluidos(body.excluidos);
+                }
             } catch(e) {}
+            filtrarRegistros();
+            carregarContagem();
         }
 
         function editarRegistro(id) {
@@ -1671,16 +1538,25 @@
                 const result = await resp.json();
                 if (!result.success) throw new Error(result.error || 'Erro no upload');
 
-                await syncFromServerBeforeAction();
-                let registros = getRegistros();
-                const idx = registros.findIndex(x => x.id == id);
-                if (idx === -1) throw new Error('Registro n\u00e3o encontrado');
-
-                registros[idx].pagamento = 'Confirmado';
-                registros[idx].comprovante = result.filename;
-                registros[idx].comprovante_nome = file.name;
-                registros[idx].comprovante_analise = null;
-                saveRegistros(registros);
+                const idx2 = todosRegistros.findIndex(x => x.id == id);
+                if (idx2 === -1) throw new Error('Registro não encontrado');
+                const record = {
+                    ...todosRegistros[idx2],
+                    pagamento: 'Confirmado',
+                    comprovante: result.filename,
+                    comprovante_nome: file.name,
+                    comprovante_analise: null,
+                };
+                const saveResp = await fetch('/salvar', {
+                    method: 'POST',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify({ registros: [record], excluidos: [] })
+                });
+                if (saveResp.ok) {
+                    const body = await saveResp.json();
+                    if (body.registros) setRegistros(body.registros);
+                    if (body.excluidos) setIdsExcluidos(body.excluidos);
+                }
 
                 status.innerHTML = '<span style="color:#28a745;">&#10003; Comprovante anexado! Pagamento confirmado.</span>';
                 btn.innerHTML = '&#10003; Enviado';
@@ -1709,37 +1585,28 @@
         async function confirmarExclusao() {
             const id = excluirId;
             if (!id) return;
-            await syncFromServerBeforeAction();
-            let registros = getRegistros();
-            const excluidosAntes = getIdsExcluidos();
-            const idx = registros.findIndex(r => r.id == id);
-            if (idx !== -1) {
-                const r = registros[idx];
-                let excluidos = getIdsExcluidos();
-                if (r._uuid && !excluidos.includes(r._uuid)) {
-                    excluidos.push(r._uuid);
-                }
-                if (id && !excluidos.includes(id)) {
-                    excluidos.push(id);
-                }
-                localStorage.setItem('evento_junho_excluidos', JSON.stringify(excluidos));
-                registros.splice(idx, 1);
-                registros = resequenceRegistros(registros);
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(registros));
+            const r = todosRegistros.find(x => x.id == id);
+            const excs = [];
+            if (r) {
+                if (r._uuid) excs.push(r._uuid);
+                excs.push(id);
             }
             fecharModalExcluir();
-            todosRegistros = registros;
-            filtrarRegistros();
-            carregarContagem();
             mostrarMensagem('Registro excluído com sucesso!', 'success');
             try {
-                await fetch('/salvar', {
+                const resp = await fetch('/salvar', {
                     method: 'POST',
                     headers: getAuthHeaders(),
-                    body: JSON.stringify({ registros: getRegistros(), excluidos: getIdsExcluidos() })
+                    body: JSON.stringify({ registros: [], excluidos: excs })
                 });
-                await carregarRegistros();
+                if (resp.ok) {
+                    const body = await resp.json();
+                    if (body.registros) setRegistros(body.registros);
+                    if (body.excluidos) setIdsExcluidos(body.excluidos);
+                }
             } catch(e) {}
+            filtrarRegistros();
+            carregarContagem();
         }
 
         function fecharModalExcluir() {
@@ -1748,23 +1615,22 @@
         }
 
         async function togglePagamento(id) {
-            await syncFromServerBeforeAction();
-            let registros = getRegistros();
-            const idx = registros.findIndex(r => r.id == id);
+            const idx = todosRegistros.findIndex(r => r.id == id);
             if (idx === -1) return;
-            registros[idx].pagamento = registros[idx].pagamento === 'Confirmado' ? 'Pendente' : 'Confirmado';
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(registros));
+            const novoPagamento = todosRegistros[idx].pagamento === 'Confirmado' ? 'Pendente' : 'Confirmado';
+            const record = { ...todosRegistros[idx], pagamento: novoPagamento };
             try {
-                await fetch('/salvar', {
+                const resp = await fetch('/salvar', {
                     method: 'POST',
                     headers: getAuthHeaders(),
-                    body: JSON.stringify({
-                        registros: registros,
-                        excluidos: getIdsExcluidos()
-                    })
+                    body: JSON.stringify({ registros: [record], excluidos: [] })
                 });
+                if (resp.ok) {
+                    const body = await resp.json();
+                    if (body.registros) setRegistros(body.registros);
+                    if (body.excluidos) setIdsExcluidos(body.excluidos);
+                }
             } catch(e) {}
-            todosRegistros = registros;
             filtrarRegistros();
             carregarContagem();
         }
@@ -1907,17 +1773,10 @@
                             }
                         }
                     }
-                    const current = getProximoNumero();
-                    if (maxNum >= current) {
-                        setProximoNumero(maxNum + 1);
-                    }
-
-                    syncFromServerBeforeAction().then(function() {
-                        saveRegistros(registros);
-                        mostrarMensagem(registros.length + ' registro(s) importado(s) com sucesso!', 'success');
-                        carregarRegistros();
-                        carregarContagem();
-                    });
+                    saveRegistros(registros);
+                    mostrarMensagem(registros.length + ' registro(s) importado(s) com sucesso!', 'success');
+                    carregarRegistros();
+                    carregarContagem();
                 } catch (err) {
                     mostrarMensagem('Erro ao importar arquivo: ' + err.message, 'error');
                 }
