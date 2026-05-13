@@ -1457,7 +1457,7 @@
             filtrarRegistros();
 
             try {
-                await fetch('/api/sync-registros', {
+                await fetch('/salvar', {
                     method: 'POST',
                     headers: getAuthHeaders(),
                     body: JSON.stringify({
@@ -1579,24 +1579,15 @@
                 btn.innerHTML = '&#10003; Enviado';
 
                 if (result.filename) {
-                    (function(fn, rid) {
-                        setTimeout(function() {
-                fetch('/analise/' + encodeURIComponent(fn), { headers: getAuthHeaders() }).then(function(r) { return r.json(); }).then(function(data) {
-                    fn(function(err) {
-                        if (err) { console.warn('analise error', err); }
-                    });
-                });
-                mostrarMensagem('Registro excluído com sucesso!', 'success');
+                    fetch('/analise/' + encodeURIComponent(result.filename), { headers: getAuthHeaders() }).catch(function(err) { console.warn('analise error', err); });
+                }
+                mostrarMensagem('Comprovante enviado com sucesso!', 'success');
                 await carregarRegistros();
                 carregarContagem();
+                document.getElementById('modal-upload').classList.remove('active');
             } catch(e) {
-                mostrarMensagem('Excluído localmente.', 'info');
-                todosRegistros = registros;
-                filtrarRegistros();
-                carregarContagem();
+                mostrarMensagem('Erro ao enviar comprovante: ' + e.message, 'error');
             }
-            excluirId = null;
-            document.getElementById('modal-excluir').classList.remove('active');
         }
 
         function fecharModalExcluir() {
@@ -1611,7 +1602,7 @@
             registros[idx].pagamento = registros[idx].pagamento === 'Confirmado' ? 'Pendente' : 'Confirmado';
             localStorage.setItem(STORAGE_KEY, JSON.stringify(registros));
             try {
-                await fetch('/api/sync-registros', {
+                await fetch('/salvar', {
                     method: 'POST',
                     headers: getAuthHeaders(),
                     body: JSON.stringify({
