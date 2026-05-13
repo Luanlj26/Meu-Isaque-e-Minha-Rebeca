@@ -578,8 +578,29 @@
             }
         };
 
+        async function syncFromServer() {
+            try {
+                var headers = getAuthHeaders();
+                var resp = await fetch('/api/contador', { headers: headers });
+                if (resp.ok) {
+                    var body = await resp.json();
+                    if (body.success && body.registros) {
+                        localStorage.setItem(STORAGE_KEY, JSON.stringify(body.registros));
+                        if (body.proximo_numero) {
+                            setProximoNumero(body.proximo_numero);
+                        }
+                        localStorage.setItem('evento_junho_excluidos', JSON.stringify([]));
+                    }
+                }
+            } catch(e) {
+                console.warn('syncFromServer: erro', e);
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
-            recalcularProximoNumero();
+            syncFromServer().then(function() {
+                recalcularProximoNumero();
+            });
             var pixEl = document.getElementById('pix-chave-display');
             if (pixEl && window.PIX_KEY) pixEl.textContent = window.PIX_KEY;
         });

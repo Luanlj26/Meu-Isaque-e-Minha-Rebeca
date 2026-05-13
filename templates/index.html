@@ -988,19 +988,23 @@
             return headers;
         }
 
-        function saveRegistros(data) {
+        async function saveRegistros(data) {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
             try {
-                fetch('/salvar', {
+                const resp = await fetch('/salvar', {
                     method: 'POST',
                     headers: getAuthHeaders(),
                     body: JSON.stringify({
                         registros: data,
                         excluidos: getIdsExcluidos()
                     })
-                }).catch(function() {
-                    console.warn('saveRegistros: falha ao sincronizar');
                 });
+                if (resp.ok) {
+                    const body = await resp.json();
+                    if (body && body.registros) {
+                        localStorage.setItem(STORAGE_KEY, JSON.stringify(body.registros));
+                    }
+                }
             } catch(e) {
                 console.warn('saveRegistros: erro', e);
             }
@@ -1176,11 +1180,9 @@
 
                         merged = resequenceRegistros(merged);
                         localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
-                        fetch('/salvar', {
-                            method: 'POST',
-                            headers: getAuthHeaders(),
-                            body: JSON.stringify({ registros: merged, excluidos: getIdsExcluidos() })
-                        }).catch(function() {});
+                        if (body.excluidos) {
+                            localStorage.setItem('evento_junho_excluidos', JSON.stringify(body.excluidos));
+                        }
                     }
                     syncStatus = 'servidor';
                 }

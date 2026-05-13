@@ -371,7 +371,9 @@ def analisar_pdf(filepath):
 def ler_registros():
     try:
         conn = get_db()
-        rows = conn.cursor().execute('SELECT * FROM registros').fetchall()
+        cur = conn.cursor()
+        cur.execute('SELECT * FROM registros')
+        rows = cur.fetchall()
         conn.close()
         result = []
         for row in rows:
@@ -387,7 +389,9 @@ def ler_registros():
 def ler_excluidos():
     try:
         conn = get_db()
-        rows = conn.cursor().execute('SELECT id FROM excluidos').fetchall()
+        cur = conn.cursor()
+        cur.execute('SELECT id FROM excluidos')
+        rows = cur.fetchall()
         conn.close()
         return [row['id'] for row in rows]
     except Exception as e:
@@ -426,7 +430,8 @@ def salvar_tudo(registros_data, excluidos_data):
                 rows
             )
 
-        excs_existing = set(str(r['id']) for r in cur.execute('SELECT id FROM excluidos').fetchall())
+        cur.execute('SELECT id FROM excluidos')
+        excs_existing = set(str(r['id']) for r in cur.fetchall())
         excs_incoming = set(str(x) for x in excluidos_data)
         merged = excs_existing | excs_incoming
 
@@ -460,7 +465,9 @@ def salvar_tudo(registros_data, excluidos_data):
 def contar_registros():
     try:
         conn = get_db()
-        row = conn.cursor().execute('SELECT COUNT(*) AS qtd FROM registros').fetchone()
+        cur = conn.cursor()
+        cur.execute('SELECT COUNT(*) AS qtd FROM registros')
+        row = cur.fetchone()
         conn.close()
         return row['qtd']
     except Exception as e:
@@ -712,6 +719,39 @@ def servir_comprovante(filename):
     if not os.path.isfile(safe_path):
         return jsonify({'success': False, 'error': 'Arquivo não encontrado'}), 404
     return send_file(safe_path)
+
+
+@app.route('/api/contador')
+def api_contador():
+    if not require_role():
+        return jsonify({'success': False, 'error': 'Não autorizado'}), 401
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute('SELECT * FROM registros')
+        rows = cur.fetchall()
+        conn.close()
+        registros = []
+        max_num = 0
+        for row in rows:
+            d = dict(row)
+            d['_uuid'] = d.pop('uuid', '')
+            registros.append(d)
+            if d.get('numeros_sorte'):
+                for n in d['numeros_sorte'].split(','):
+                    try:
+                        max_num = max(max_num, int(n.strip()))
+                    except:
+                        pass
+        return jsonify({
+            'success': True,
+            'total': len(registros),
+            'proximo_numero': max_num + 1,
+            'registros': registros,
+        })
+    except Exception as e:
+        log.error('Erro no contador: %s', e)
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/favicon.ico')
