@@ -1655,6 +1655,37 @@
             }
         }
 
+        function excluirRegistro(id) {
+            const registros = getRegistros();
+            const r = registros.find(x => x.id == id);
+            if (!r) return;
+            document.getElementById('excluir-nome').textContent = '#' + r.id + ' - ' + (r.nome || '');
+            excluirId = id;
+            document.getElementById('modal-excluir').classList.add('active');
+        }
+
+        function confirmarExclusao() {
+            const id = excluirId;
+            if (!id) return;
+            let registros = getRegistros();
+            const idx = registros.findIndex(r => r.id == id);
+            if (idx !== -1) {
+                let excluidos = getIdsExcluidos();
+                if (!excluidos.includes(id)) {
+                    excluidos.push(id);
+                    localStorage.setItem('evento_junho_excluidos', JSON.stringify(excluidos));
+                }
+                registros.splice(idx, 1);
+                registros = resequenceRegistros(registros);
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(registros));
+            }
+            fecharModalExcluir();
+            todosRegistros = registros;
+            filtrarRegistros();
+            carregarContagem();
+            mostrarMensagem('Registro excluído com sucesso!', 'success');
+        }
+
         function fecharModalExcluir() {
             excluirId = null;
             document.getElementById('modal-excluir').classList.remove('active');
