@@ -379,17 +379,12 @@
             return headers;
         }
 
-        async function saveRegistros(data, attempt) {
-            if (attempt === undefined) attempt = 1;
+        async function saveRegistros(data) {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
             try {
-                var headers = getAuthHeaders();
-                if (attempt > 1) {
-                    headers = { 'Content-Type': 'application/json' };
-                }
                 var resp = await fetch('/salvar', {
                     method: 'POST',
-                    headers: headers,
+                    headers: getAuthHeaders(),
                     body: JSON.stringify({
                         registros: data,
                         excluidos: getIdsExcluidos()
@@ -400,12 +395,13 @@
                         var body = await resp.json();
                         if (body && body.registros) {
                             localStorage.setItem(STORAGE_KEY, JSON.stringify(body.registros));
+                            if (body.excluidos) {
+                                localStorage.setItem('evento_junho_excluidos', JSON.stringify(body.excluidos));
+                            }
                         }
                     } catch (jsonErr) {
                         // resposta nao-JSON, dados ja salvos localmente
                     }
-                } else if (resp.status === 403 && attempt < 2) {
-                    await saveRegistros(data, attempt + 1);
                 } else {
                     mostrarMensagem('Erro ao sincronizar com servidor (HTTP ' + resp.status + '). Recarregue a p\u00e1gina.', 'error');
                 }
@@ -581,7 +577,7 @@
         async function syncFromServer() {
             try {
                 var headers = getAuthHeaders();
-                var resp = await fetch('/api/contador', { headers: headers });
+                var resp = await fetch('/api/sync', { headers: headers });
                 if (resp.ok) {
                     var body = await resp.json();
                     if (body.success && body.registros) {
@@ -589,7 +585,9 @@
                         if (body.proximo_numero) {
                             setProximoNumero(body.proximo_numero);
                         }
-                        localStorage.setItem('evento_junho_excluidos', JSON.stringify([]));
+                        if (body.excluidos) {
+                            localStorage.setItem('evento_junho_excluidos', JSON.stringify(body.excluidos));
+                        }
                     }
                 }
             } catch(e) {
@@ -603,6 +601,23 @@
             });
             var pixEl = document.getElementById('pix-chave-display');
             if (pixEl && window.PIX_KEY) pixEl.textContent = window.PIX_KEY;
+        });
+
+        // Sincronização periódica a cada 30s
+        setInterval(function() {
+            syncFromServer().then(function() {
+                recalcularProximoNumero();
+            });
+        }, 30000);
+
+        // Sincronização cross-tab
+        window.addEventListener('storage', function(e) {
+            if (e.key === STORAGE_KEY || e.key === 'evento_junho_excluidos') {
+                console.log('storage event detected, re-syncing from server');
+                syncFromServer().then(function() {
+                    recalcularProximoNumero();
+                });
+            }
         });
 
         function getMaxLocalId() {

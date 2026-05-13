@@ -623,6 +623,7 @@ def api_sync_registros():
         resp = {'success': True}
         if is_auto:
             resp['registros'] = regs
+            resp['excluidos'] = excs
         return jsonify(resp)
     except Exception as e:
         log.error('Erro sync: %s', e)
@@ -721,24 +722,17 @@ def servir_comprovante(filename):
     return send_file(safe_path)
 
 
-@app.route('/api/contador')
-def api_contador():
+@app.route('/api/sync', methods=['GET'])
+def api_sync_auto():
     if not require_role():
         return jsonify({'success': False, 'error': 'Não autorizado'}), 401
     try:
-        conn = get_db()
-        cur = conn.cursor()
-        cur.execute('SELECT * FROM registros')
-        rows = cur.fetchall()
-        conn.close()
-        registros = []
+        registros = ler_registros()
+        excluidos = ler_excluidos()
         max_num = 0
-        for row in rows:
-            d = dict(row)
-            d['_uuid'] = d.pop('uuid', '')
-            registros.append(d)
-            if d.get('numeros_sorte'):
-                for n in d['numeros_sorte'].split(','):
+        for r in registros:
+            if r.get('numeros_sorte'):
+                for n in r['numeros_sorte'].split(','):
                     try:
                         max_num = max(max_num, int(n.strip()))
                     except:
@@ -748,9 +742,10 @@ def api_contador():
             'total': len(registros),
             'proximo_numero': max_num + 1,
             'registros': registros,
+            'excluidos': excluidos,
         })
     except Exception as e:
-        log.error('Erro no contador: %s', e)
+        log.error('Erro no sync: %s', e)
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
