@@ -146,7 +146,7 @@ ocr_results_lock = threading.Lock()
 def get_db():
     if USANDO_PG:
         try:
-            return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor, connect_timeout=10, sslmode='require')
+            return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor, connect_timeout=5)
         except Exception as e:
             log.warning('Erro ao conectar PostgreSQL: %s', e)
     conn = sqlite3.connect(DATABASE)
@@ -721,8 +721,11 @@ def servir_imagem():
     return send_file(os.path.join(BASE_DIR, 'imagem_evento.jpeg'))
 
 
-init_db()
-backup_db()
+try:
+    init_db()
+    backup_db()
+except Exception as e:
+    log.error('Erro ao inicializar banco: %s', e)
 
 @app.route('/verificar', methods=['GET', 'POST'])
 def api_diagnostico():
