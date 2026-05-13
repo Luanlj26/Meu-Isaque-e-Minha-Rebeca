@@ -1537,6 +1537,71 @@
             document.getElementById('modal-upload').classList.add('active');
         }
 
+        function gerarBadgesAnalise(r) {
+            if (!r.comprovante_analise) return '';
+            try {
+                const a = JSON.parse(r.comprovante_analise);
+                let badges = '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;">';
+                if (a.valor_encontrado !== null && a.valor_encontrado !== undefined) {
+                    badges += '<span class="analise-badge ok">R$ ' + a.valor_encontrado.toFixed(2) + '</span>';
+                }
+                if (a.chave_pix_encontrada) {
+                    badges += '<span class="analise-badge ok">PIX OK</span>';
+                }
+                if (a.data_pagamento) {
+                    badges += '<span class="analise-badge ok">Data ' + a.data_pagamento + '</span>';
+                }
+                if (!a.valor_encontrado && !a.chave_pix_encontrada) {
+                    badges += '<span class="analise-badge pendente">Pendente</span>';
+                }
+                badges += '</div>';
+                return badges;
+            } catch(e) {
+                return '';
+            }
+        }
+
+        function limparFormulario() {
+            document.getElementById('edit-id').value = '';
+            document.getElementById('nome').value = '';
+            document.getElementById('telefone').value = '';
+            document.getElementById('email').value = '';
+            document.getElementById('quantidade_pulseiras').value = '';
+        }
+
+        function verAnalise(id) {
+            const registros = getRegistros();
+            const r = registros.find(x => x.id == id);
+            if (!r || !r.comprovante_analise) {
+                mostrarMensagem('Nenhuma análise disponível para este registro.', 'info');
+                return;
+            }
+            try {
+                const a = JSON.parse(r.comprovante_analise);
+                const body = document.getElementById('modal-analise-body');
+                body.innerHTML =
+                    '<div class="analise-row"><span class="analise-label">Valor encontrado</span><span class="analise-value">' +
+                    (a.valor_encontrado !== null ? 'R$ ' + a.valor_encontrado.toFixed(2) : 'N/D') +
+                    '</span></div>' +
+                    '<div class="analise-row"><span class="analise-label">Chave PIX</span><span class="analise-value">' +
+                    (a.chave_pix_encontrada || 'N/D') +
+                    '</span></div>' +
+                    '<div class="analise-row"><span class="analise-label">Data</span><span class="analise-value">' +
+                    (a.data_pagamento || 'N/D') +
+                    '</span></div>' +
+                    '<div class="analise-row"><span class="analise-label">Hora</span><span class="analise-value">' +
+                    (a.hora_pagamento || 'N/D') +
+                    '</span></div>';
+                document.getElementById('modal-analise').classList.add('active');
+            } catch(e) {
+                mostrarMensagem('Erro ao carregar análise.', 'error');
+            }
+        }
+
+        function fecharModalAnalise() {
+            document.getElementById('modal-analise').classList.remove('active');
+        }
+
         async function enviarComprovanteAdmin() {
             const id = document.getElementById('upload-modal-id').value;
             const fileInput = document.getElementById('upload-modal-file');
