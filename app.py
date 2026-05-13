@@ -17,8 +17,13 @@ import fitz
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
 USANDO_PG = bool(DATABASE_URL)
 if USANDO_PG:
-    import psycopg2
-    from psycopg2.extras import RealDictCursor
+    try:
+        import psycopg2
+        from psycopg2.extras import RealDictCursor
+    except Exception as e:
+        log.warning('psycopg2 nao disponivel, usando SQLite: %s', e)
+        USANDO_PG = False
+        import sqlite3
 else:
     import sqlite3
 
@@ -140,8 +145,10 @@ ocr_results_lock = threading.Lock()
 
 def get_db():
     if USANDO_PG:
-        conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
-        return conn
+        try:
+            return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor, connect_timeout=10, sslmode='require')
+        except Exception as e:
+            log.warning('Erro ao conectar PostgreSQL: %s', e)
     conn = sqlite3.connect(DATABASE)
     conn.row_factory = sqlite3.Row
     conn.execute('PRAGMA journal_mode=WAL')
