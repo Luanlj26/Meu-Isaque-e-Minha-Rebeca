@@ -764,26 +764,6 @@ try:
 except Exception as e:
     log.error('Erro ao inicializar banco: %s', e)
 
-@app.route('/limpar-excluidos', methods=['GET'])
-def api_limpar_excluidos():
-    if not require_role(admin_only=True):
-        return jsonify({'success': False, 'error': 'Não autorizado'}), 401
-    try:
-        conn = get_db()
-        cur = conn.cursor()
-        if USANDO_PG:
-            cur.execute('DELETE FROM excluidos')
-        else:
-            cur.execute('DELETE FROM excluidos')
-        conn.commit()
-        conn.close()
-        log.info('Excluidos limpos via API')
-        return jsonify({'success': True, 'mensagem': 'Excluidos limpos com sucesso'})
-    except Exception as e:
-        log.error('Erro ao limpar excluidos: %s', e)
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
 @app.route('/verificar', methods=['GET', 'POST'])
 def api_diagnostico():
     import json as _json
