@@ -1319,7 +1319,7 @@
             const isImg = ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext);
             let html = '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">';
             if (isImg) {
-                html += '<img src="/comprovantes/' + r.comprovante + '" style="width:60px;height:45px;object-fit:cover;border-radius:6px;border:1px solid #e0d8d8;cursor:pointer;" onclick="verComprovanteModal(' + r.id + ')" title="Clique para ampliar">';
+                html += '<img src="/comprovantes/' + r.comprovante + '" style="width:60px;height:45px;object-fit:cover;border-radius:6px;border:1px solid #e0d8d8;cursor:pointer;" onclick="verComprovanteModal(' + r.id + ')" title="Clique para ampliar" onerror="this.style.display=\'none\'">';
             } else {
                 html += '<div style="width:45px;height:45px;display:flex;align-items:center;justify-content:center;background:#fce8e8;border-radius:6px;border:1px solid #e0d8d8;font-size:20px;cursor:pointer;" onclick="verComprovanteModal(' + r.id + ')" title="' + (r.comprovante_nome || 'PDF') + '">&#128196;</div>';
             }
@@ -1499,7 +1499,7 @@
                 const isImg = ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext);
                 let html = '<div style="display:flex;flex-direction:column;align-items:center;gap:4px;">';
                 if (isImg) {
-                    html += '<img src="/comprovantes/' + r.comprovante + '" style="width:80px;height:60px;object-fit:cover;border-radius:6px;border:1px solid #e0d8d8;cursor:pointer;" onclick="verComprovanteModal(' + r.id + ')" title="Clique para ampliar">';
+                    html += '<img src="/comprovantes/' + r.comprovante + '" style="width:80px;height:60px;object-fit:cover;border-radius:6px;border:1px solid #e0d8d8;cursor:pointer;" onclick="verComprovanteModal(' + r.id + ')" title="Clique para ampliar" onerror="this.style.display=\'none\'">';
                 } else {
                     html += '<div style="width:80px;height:60px;display:flex;align-items:center;justify-content:center;background:#fce8e8;border-radius:6px;border:1px solid #e0d8d8;font-size:24px;cursor:pointer;" onclick="verComprovanteModal(' + r.id + ')" title="' + (r.comprovante_nome || 'PDF') + '">&#128196;</div>';
                 }
@@ -1866,7 +1866,37 @@
             reader.readAsArrayBuffer(file);
             event.target.value = '';
         }
+        function verComprovanteModal(id) {
+            const registros = getRegistros();
+            const r = registros.find(x => x.id == id);
+            if (!r || !r.comprovante) return;
+            const ext = r.comprovante.split('.').pop().toLowerCase();
+            const isImg = ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext);
+            const modalBody = document.getElementById('modal-comprovante-body');
+            if (isImg) {
+                modalBody.innerHTML = '<img src="/comprovantes/' + r.comprovante + '" style="max-width:100%;max-height:80vh;border-radius:8px;" onerror="this.outerHTML=\'<p style=color:#999;text-align:center;padding:40px;>Imagem n\u00e3o encontrada</p>\'">';
+            } else {
+                modalBody.innerHTML = '<iframe src="/comprovantes/' + r.comprovante + '" style="width:100%;height:80vh;border:none;border-radius:8px;" onerror="this.outerHTML=\'<p style=color:#999;text-align:center;padding:40px;>Arquivo n\u00e3o encontrado</p>\'"></iframe>';
+            }
+            document.getElementById('modal-comprovante').classList.add('active');
+        }
+
+        function fecharModalComprovante() {
+            document.getElementById('modal-comprovante').classList.remove('active');
+        }
     </script>
+    <!-- Modal de Visualização do Comprovante -->
+    <div class="modal-overlay" id="modal-comprovante">
+        <div class="modal-content" style="max-width:800px;">
+            <div class="modal-header">
+                <h3>&#128206; Comprovante</h3>
+                <button class="modal-close" onclick="fecharModalComprovante()">&times;</button>
+            </div>
+            <div class="modal-body" id="modal-comprovante-body" style="text-align:center;">
+                <p style="color:#999;">Carregando...</p>
+            </div>
+        </div>
+    </div>
     <!-- Modal de Análise do Comprovante -->
     <div class="modal-overlay" id="modal-analise">
         <div class="modal-content">
