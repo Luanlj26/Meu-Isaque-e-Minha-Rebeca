@@ -1159,10 +1159,12 @@
                     const serverRegistros = body.registros || body;
 
                     if (Array.isArray(serverRegistros)) {
-                        // Merge por UUID: preserva registros locais que ainda não foram pro servidor
                         const serverUuids = new Set(serverRegistros.map(function(r) { return r._uuid; }));
                         const serverExcluidos = new Set(body.excluidos || []);
-                        let merged = [...serverRegistros];
+                        const localExcluidos = new Set(getIdsExcluidos().map(function(id) { return String(id); }));
+                        let merged = serverRegistros.filter(function(r) {
+                            return !localExcluidos.has(String(r._uuid)) && !localExcluidos.has(String(r.id));
+                        });
                         const localData = getRegistros();
                         for (const r of localData) {
                             if (r._uuid && !serverUuids.has(r._uuid) && !serverExcluidos.has(r._uuid) && !serverExcluidos.has(String(r.id))) {
@@ -1172,7 +1174,6 @@
 
                         merged = resequenceRegistros(merged);
                         localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
-                        // Reenvia dados mesclados para o servidor
                         fetch('/salvar', {
                             method: 'POST',
                             headers: getAuthHeaders(),
@@ -1684,6 +1685,11 @@
             filtrarRegistros();
             carregarContagem();
             mostrarMensagem('Registro excluído com sucesso!', 'success');
+            fetch('/salvar', {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({ registros: getRegistros(), excluidos: getIdsExcluidos() })
+            }).catch(function() {});
         }
 
         function fecharModalExcluir() {
