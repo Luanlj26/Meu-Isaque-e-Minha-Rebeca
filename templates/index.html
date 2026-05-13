@@ -873,17 +873,10 @@
                 </div>
                 <div style="display:flex;gap:10px;flex-wrap:wrap;">
                     <button class="btn btn-success" onclick="copiarPix()">&#128203; Copiar PIX</button>
-                    <button class="btn btn-outline" onclick="mostrarQRCode()" title="Acessar do celular">&#128241;</button>
                 </div>
             </div>
-            <div class="card" style="margin-bottom:20px;display:flex;align-items:center;gap:20px;padding:15px 25px;flex-wrap:wrap;">
-                <span style="font-size:28px;">&#128279;</span>
-                <div style="flex:1;min-width:200px;">
-                    <div style="font-size:13px;font-weight:600;color:#555;margin-bottom:2px;">COMPARTILHE O AUTO-CADASTRO</div>
-                    <div style="font-size:14px;font-weight:600;color:#333;word-break:break-all;" id="autocadastro-link">Carregando...</div>
-                </div>
-                <img id="qr-autocadastro" src="" alt="QR" style="width:60px;height:60px;border-radius:8px;cursor:pointer;border:1px solid #e0d8d8;" onclick="mostrarQRCode()" title="Clique para ampliar">
-                <button class="btn btn-sm btn-primary" onclick="compartilharLink()">&#128228; Compartilhar</button>
+            <div style="margin-bottom:20px;">
+                <button class="btn btn-sm btn-primary" onclick="compartilharLink()" style="margin-right:8px;">&#128203; Copiar Link do Auto-Cadastro</button>
             </div>
             <div class="card">
                 <div id="loading-listagem" class="loading">Carregando registros</div>
@@ -980,12 +973,27 @@
             localStorage.setItem('evento_junho_excluidos', JSON.stringify(ids));
         }
 
+        function getAuthHeaders(extra) {
+            var headers = extra || {};
+            var pageToken = window.PAGE_TOKEN;
+            if (pageToken) {
+                headers['Authorization'] = 'Bearer ' + pageToken;
+            }
+            if (extra && extra._noContentType) {
+                delete headers['Content-Type'];
+                delete extra._noContentType;
+            } else if (!headers['Content-Type']) {
+                headers['Content-Type'] = 'application/json';
+            }
+            return headers;
+        }
+
         function saveRegistros(data) {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
             try {
-                fetch('/api/sync-registros', {
+                fetch('/salvar', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.CSRF_TOKEN },
+                    headers: getAuthHeaders(),
                     body: JSON.stringify({
                         registros: data,
                         excluidos: getIdsExcluidos()
@@ -1008,19 +1016,35 @@
         }
 
         function resequenceRegistros(registros) {
-            let proximoNumero = 1;
+            let maxId = 0;
+            let maxNum = 0;
             for (let i = 0; i < registros.length; i++) {
-                registros[i].id = String(i + 1);
-                if (!registros[i]._uuid) registros[i]._uuid = generateUUID();
-                const qtd = parseInt(registros[i].quantidade_pulseiras, 10) || 0;
-                const nums = [];
-                for (let j = 0; j < qtd; j++) {
-                    nums.push(proximoNumero);
-                    proximoNumero++;
+                const id = parseInt(registros[i].id, 10);
+                if (!isNaN(id) && id > maxId) maxId = id;
+                if (registros[i].numeros_sorte) {
+                    for (const n of registros[i].numeros_sorte.split(',')) {
+                        const num = parseInt(n.trim(), 10);
+                        if (!isNaN(num) && num > maxNum) maxNum = num;
+                    }
                 }
-                registros[i].numeros_sorte = nums.join(',');
+                if (!registros[i]._uuid) registros[i]._uuid = generateUUID();
             }
-            setProximoNumero(proximoNumero);
+            for (let i = 0; i < registros.length; i++) {
+                if (!registros[i].id) {
+                    maxId++;
+                    registros[i].id = String(maxId);
+                }
+                if (!registros[i].numeros_sorte) {
+                    const qtd = parseInt(registros[i].quantidade_pulseiras, 10) || 0;
+                    const nums = [];
+                    for (let j = 0; j < qtd; j++) {
+                        maxNum++;
+                        nums.push(maxNum);
+                    }
+                    registros[i].numeros_sorte = nums.join(',');
+                }
+            }
+            setProximoNumero(maxNum + 1);
             return registros;
         }
 
@@ -1127,7 +1151,7 @@
             }
 
             try {
-                const resp = await fetch('/api/registros', { cache: 'no-store', headers: { 'X-CSRF-Token': window.CSRF_TOKEN } });
+                const resp = await fetch('/dados', { cache: 'no-store', headers: getAuthHeaders() });
                 if (resp.status === 401) {
                     mostrarMensagem('Erro de autentica\u00e7\u00e3o. Token inv\u00e1lido. Reinicie o servidor.', 'error');
                 } else if (resp.ok) {
@@ -1149,9 +1173,9 @@
                         merged = resequenceRegistros(merged);
                         localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
                         // Reenvia dados mesclados para o servidor
-                        fetch('/api/sync-registros', {
+                        fetch('/salvar', {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.CSRF_TOKEN },
+                            headers: getAuthHeaders(),
                             body: JSON.stringify({ registros: merged, excluidos: getIdsExcluidos() })
                         }).catch(function() {});
                     }
@@ -1178,6 +1202,10 @@
                 carregarRegistros(true);
             }
         }, 8000);
+
+        window.addEventListener('beforeunload', function() {
+            clearInterval(autoRefreshTimer);
+        });
 
         function filtrarRegistros() {
             const termo = document.getElementById('busca-input').value.toLowerCase();
@@ -1349,26 +1377,6 @@
             return window.PUBLIC_URL || (window.location.protocol + '//' + window.location.host);
         }
 
-        function mostrarQRCode(tipo) {
-            const base = getBaseUrl();
-            const url = tipo === 'admin' ? base : base + '/auto-cadastro';
-            const titulo = tipo === 'admin' ? 'Admin' : 'Auto-Cadastro';
-            const body = document.getElementById('qr-modal-body');
-            body.innerHTML =
-                '<div style="text-align:center;">' +
-                '<p style="color:#555;margin-bottom:15px;font-size:14px;">Escaneie para acessar o ' + titulo + '</p>' +
-                '<div style="background:white;border-radius:12px;padding:10px;display:inline-block;box-shadow:0 2px 12px rgba(0,0,0,0.1);">' +
-                '<img src="/api/qr-code?size=10&data=' + encodeURIComponent(url) + '" alt="QR Code" style="width:200px;height:200px;border-radius:8px;">' +
-                '</div>' +
-                '<p style="margin-top:15px;font-size:16px;font-weight:700;color:#1565c0;word-break:break-all;">' + url + '</p>' +
-                '<div style="margin-top:15px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">' +
-                '<button class="btn btn-sm btn-outline" onclick="mostrarQRCode(\'admin\')">&#128272; Admin</button>' +
-                '<button class="btn btn-sm btn-primary" onclick="mostrarQRCode(\'auto\')">&#128221; Auto-Cadastro</button>' +
-                '</div>' +
-                '</div>';
-            document.getElementById('qr-modal').classList.add('active');
-        }
-
         function compartilharLink() {
             const base = getBaseUrl();
             const url = base + '/auto-cadastro';
@@ -1391,12 +1399,6 @@
             recalcularProximoNumero();
             carregarContagem();
             carregarRegistros();
-
-            // Set auto-cadastro link and QR on page load
-            const base = getBaseUrl();
-            const autoUrl = base + '/auto-cadastro';
-            document.getElementById('autocadastro-link').textContent = autoUrl;
-            document.getElementById('qr-autocadastro').src = '/api/qr-code?size=5&data=' + encodeURIComponent(autoUrl);
 
             // Set PIX key display from server variable
             var pixKey = window.PIX_KEY || 'luanborges26@outlook.com';
@@ -1457,7 +1459,7 @@
             try {
                 await fetch('/api/sync-registros', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.CSRF_TOKEN },
+                    headers: getAuthHeaders(),
                     body: JSON.stringify({
                         registros: registros,
                         excluidos: getIdsExcluidos()
@@ -1554,9 +1556,9 @@
             try {
                 const formData = new FormData();
                 formData.append('file', file);
-                const resp = await fetch('/api/upload', {
+                const resp = await fetch('/enviar', {
                     method: 'POST',
-                    headers: { 'X-CSRF-Token': window.CSRF_TOKEN },
+                    headers: getAuthHeaders({ _noContentType: true }),
                     body: formData
                 });
                 if (!resp.ok) throw new Error('Falha no upload (HTTP ' + resp.status + ')');
@@ -1579,197 +1581,19 @@
                 if (result.filename) {
                     (function(fn, rid) {
                         setTimeout(function() {
-                            fetch('/api/ocr/' + encodeURIComponent(fn)).then(function(r) { return r.json(); }).then(function(data) {
-                                if (data.status === 'done' && data.analise) {
-                                    var regs = getRegistros();
-                                    var i = regs.findIndex(function(x) { return x.id == rid; });
-                                    if (i !== -1) {
-                                        regs[i].comprovante_analise = JSON.stringify(data.analise);
-                                        saveRegistros(regs);
-                                    }
-                                }
-                            }).catch(function() {});
-                        }, 3000);
-                    })(result.filename, id);
-                }
-
-                setTimeout(function() {
-                    document.getElementById('modal-upload').classList.remove('active');
-                    carregarRegistros();
-                }, 1500);
-            } catch (e) {
-                status.innerHTML = '<span style="color:#dc3545;">&#9888; Erro: ' + e.message + '</span>';
-                btn.disabled = false;
-                btn.innerHTML = '&#128259; Enviar Comprovante';
-            }
-        }
-
-        function verComprovanteModal(id) {
-            const registros = getRegistros();
-            const r = registros.find(x => x.id == id);
-            if (!r || !r.comprovante) { mostrarMensagem('Nenhum comprovante anexado.', 'error'); return; }
-            const ext = r.comprovante.split('.').pop().toLowerCase();
-            const isImg = ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext);
-            const body = document.getElementById('modal-analise-body');
-            document.querySelector('#modal-analise .modal-header h3').innerHTML = '&#128206; Comprovante #' + r.id;
-            let html = '<div class="analise-row"><span class="analise-label">Registro</span><span class="analise-value">#' + r.id + ' - ' + (r.nome || '') + '</span></div>';
-            html += '<div class="analise-row"><span class="analise-label">Arquivo</span><span class="analise-value">' + (r.comprovante_nome || r.comprovante) + '</span></div>';
-            if (isImg) {
-                html += '<div style="text-align:center;margin-top:15px;"><img src="/comprovantes/' + r.comprovante + '" style="max-width:100%;max-height:450px;border-radius:8px;border:1px solid #e0d8d8;box-shadow:0 2px 12px rgba(0,0,0,0.1);"></div>';
-            } else {
-                html += '<div style="text-align:center;margin-top:15px;padding:20px;"><span style="font-size:64px;display:block;margin-bottom:15px;">&#128196;</span><a href="/comprovantes/' + r.comprovante + '" target="_blank" class="btn btn-primary" style="text-decoration:none;">&#128206; Abrir PDF</a></div>';
-            }
-            body.innerHTML = html;
-            document.getElementById('modal-analise').classList.add('active');
-        }
-
-        function gerarBadgesAnalise(r) {
-            if (!r.comprovante_analise) return '';
-            let analise;
-            try { analise = JSON.parse(r.comprovante_analise); } catch { return ''; }
-            if (!analise) return '';
-            const badges = [];
-            badges.push('<div style="display:flex;gap:2px;flex-wrap:wrap;justify-content:center;">');
-            if (analise.valor_encontrado !== null) {
-                badges.push('<span class="analise-badge ok" title="Valor detectado: R$ ' + analise.valor_encontrado.toFixed(2) + '">R$</span>');
-            } else {
-                badges.push('<span class="analise-badge pendente" title="Valor n\u00e3o detectado">R$?</span>');
-            }
-            if (analise.chave_pix_encontrada) {
-                const cls = analise.chave_pix_encontrada.toLowerCase() === (window.PIX_KEY || 'luanborges26@outlook.com').toLowerCase() ? 'ok' : 'erro';
-                badges.push('<span class="analise-badge ' + cls + '" title="Chave PIX: ' + analise.chave_pix_encontrada + '">PIX</span>');
-            } else {
-                badges.push('<span class="analise-badge pendente" title="Chave PIX n\u00e3o detectada">PIX?</span>');
-            }
-            if (analise.data_pagamento) {
-                badges.push('<span class="analise-badge ok" title="Data: ' + analise.data_pagamento + '">DATA</span>');
-            } else {
-                badges.push('<span class="analise-badge pendente" title="Data n\u00e3o detectada">DATA?</span>');
-            }
-            badges.push('</div>');
-            return badges.join('');
-        }
-
-        function verAnalise(id) {
-            const registros = getRegistros();
-            const r = registros.find(x => x.id == id);
-            if (!r || !r.comprovante_analise) {
-                mostrarMensagem('Nenhuma an\u00e1lise dispon\u00edvel para este registro.', 'error');
-                return;
-            }
-            let analise;
-            try { analise = JSON.parse(r.comprovante_analise); } catch {
-                mostrarMensagem('Erro ao ler dados da an\u00e1lise.', 'error');
-                return;
-            }
-            const body = document.getElementById('modal-analise-body');
-            const rows = [];
-            rows.push('<div class="analise-row"><span class="analise-label">Registro</span><span class="analise-value">#' + r.id + ' - ' + (r.nome || '') + '</span></div>');
-
-            if (analise.valor_encontrado !== null) {
-                rows.push('<div class="analise-row"><span class="analise-label">Valor no comprovante</span><span class="analise-value" style="color:#28a745;">R$ ' + analise.valor_encontrado.toFixed(2) + '</span></div>');
-            } else {
-                rows.push('<div class="analise-row"><span class="analise-label">Valor no comprovante</span><span class="analise-value" style="color:#999;">N\u00e3o detectado</span></div>');
-            }
-
-            if (analise.chave_pix_encontrada) {
-                const pixKey = (window.PIX_KEY || 'luanborges26@outlook.com').toLowerCase();
-                const cor = analise.chave_pix_encontrada.toLowerCase() === pixKey ? '#28a745' : '#dc3545';
-                const status = analise.chave_pix_encontrada.toLowerCase() === pixKey ? 'Corresponde' : 'DIVERGE';
-                rows.push('<div class="analise-row"><span class="analise-label">Chave PIX no comprovante</span><span class="analise-value" style="color:' + cor + ';">' + analise.chave_pix_encontrada + ' (' + status + ')</span></div>');
-            } else {
-                rows.push('<div class="analise-row"><span class="analise-label">Chave PIX no comprovante</span><span class="analise-value" style="color:#999;">N\u00e3o detectada</span></div>');
-            }
-
-            if (analise.data_pagamento) {
-                rows.push('<div class="analise-row"><span class="analise-label">Data do pagamento</span><span class="analise-value" style="color:#1565c0;">' + analise.data_pagamento + '</span></div>');
-            } else {
-                rows.push('<div class="analise-row"><span class="analise-label">Data do pagamento</span><span class="analise-value" style="color:#999;">N\u00e3o detectada</span></div>');
-            }
-
-            if (analise.hora_pagamento) {
-                rows.push('<div class="analise-row"><span class="analise-label">Hora do pagamento</span><span class="analise-value" style="color:#1565c0;">' + analise.hora_pagamento + '</span></div>');
-            } else {
-                rows.push('<div class="analise-row"><span class="analise-label">Hora do pagamento</span><span class="analise-value" style="color:#999;">N\u00e3o detectada</span></div>');
-            }
-
-            body.innerHTML = rows.join('');
-            document.getElementById('modal-analise').classList.add('active');
-        }
-
-        function fecharModalAnalise() {
-            document.getElementById('modal-analise').classList.remove('active');
-        }
-
-        document.addEventListener('click', function(e) {
-            if (e.target.classList.contains('modal-overlay')) {
-                fecharModalAnalise();
-            }
-        });
-
-        function sairCadastro() {
-            if (document.getElementById('edit-id').value || document.getElementById('nome').value || document.getElementById('telefone').value || document.getElementById('email').value) {
-                if (!confirm('Tem certeza que deseja sair? Os dados não salvos serão perdidos.')) return;
-            }
-            limparFormulario();
-            switchTab('listagem');
-        }
-
-        function limparFormulario() {
-            document.getElementById('edit-id').value = '';
-            document.getElementById('nome').value = '';
-            document.getElementById('telefone').value = '';
-            document.getElementById('email').value = '';
-            document.getElementById('quantidade_pulseiras').value = '';
-            document.getElementById('valor-pulseiras-display').style.display = 'none';
-            document.getElementById('numeros-automaticos').innerHTML = 'Defina a quantidade de pulseiras para gerar os números';
-            document.getElementById('numeros-automaticos').style.color = '#888';
-            document.getElementById('form-title').textContent = 'Novo Cadastro';
-            document.getElementById('btn-salvar').innerHTML = '&#10003; Cadastrar';
-        }
-
-        let excluirId = null;
-
-        function excluirRegistro(id) {
-            excluirId = id;
-            const registros = getRegistros();
-            const r = registros.find(x => x.id == id);
-            const nome = r ? r.nome : 'ID #' + id;
-            document.getElementById('excluir-nome').textContent = nome;
-            document.getElementById('modal-excluir').classList.add('active');
-        }
-
-        async function confirmarExclusao() {
-            if (excluirId === null) return;
-            let registros = getRegistros();
-            const antes = registros.length;
-            const deletedReg = registros.find(function(r) { return r.id == excluirId; });
-            var deletedUuid = deletedReg ? deletedReg._uuid : null;
-            registros = registros.filter(r => r.id != excluirId);
-            if (registros.length === antes) {
-                mostrarMensagem('Registro não encontrado.', 'error');
-                excluirId = null;
-                document.getElementById('modal-excluir').classList.remove('active');
-                return;
-            }
-            registros = resequenceRegistros(registros);
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(registros));
-            var excs = getIdsExcluidos();
-            if (deletedUuid && excs.indexOf(deletedUuid) === -1) excs.push(deletedUuid);
-            if (excs.indexOf(String(excluirId)) === -1) excs.push(String(excluirId));
-            setIdsExcluidos(excs);
-            try {
-                await fetch('/api/sync-registros', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.CSRF_TOKEN },
-                    body: JSON.stringify({ registros: registros, excluidos: excs })
+                fetch('/analise/' + encodeURIComponent(fn), { headers: getAuthHeaders() }).then(function(r) { return r.json(); }).then(function(data) {
+                    fn(function(err) {
+                        if (err) { console.warn('analise error', err); }
+                    });
                 });
                 mostrarMensagem('Registro excluído com sucesso!', 'success');
                 await carregarRegistros();
+                carregarContagem();
             } catch(e) {
                 mostrarMensagem('Excluído localmente.', 'info');
                 todosRegistros = registros;
                 filtrarRegistros();
+                carregarContagem();
             }
             excluirId = null;
             document.getElementById('modal-excluir').classList.remove('active');
@@ -1789,7 +1613,7 @@
             try {
                 await fetch('/api/sync-registros', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.CSRF_TOKEN },
+                    headers: getAuthHeaders(),
                     body: JSON.stringify({
                         registros: registros,
                         excluidos: getIdsExcluidos()
@@ -1798,20 +1622,14 @@
             } catch(e) {}
             todosRegistros = registros;
             filtrarRegistros();
-        }
-
-        let confirmacaoRegistroId = null;
-
-        function fecharModalConfirmacao() {
-            document.getElementById('modal-confirmacao').classList.remove('active');
-            confirmacaoRegistroId = null;
+            carregarContagem();
         }
 
         async function pollOcrResult(filename, id, timeoutMs=60000) {
             const start = Date.now();
             while (Date.now() - start < timeoutMs) {
                 try {
-                    const resp = await fetch('/api/ocr/' + encodeURIComponent(filename));
+                    const resp = await fetch('/analise/' + encodeURIComponent(filename), { headers: getAuthHeaders() });
                     const data = await resp.json();
                     if (data.status === 'done' && data.analise) {
                         let registros = getRegistros();
@@ -1834,60 +1652,14 @@
             return null;
         }
 
-        async function confirmarPagamento() {
-            const fileInput = document.getElementById('confirmacao-comprovante-input');
-            const file = fileInput.files[0];
-            const status = document.getElementById('confirmacao-status');
-            const btn = document.getElementById('btn-confirmar-pagamento');
 
-            if (!file) {
-                status.innerHTML = '<span style="color:#dc3545;">&#9888; Selecione um comprovante primeiro.</span>';
-                return;
-            }
-
-            btn.disabled = true;
-            btn.innerHTML = '&#128190; Enviando...';
-            status.innerHTML = '<span style="color:#1565c0;">&#128259; Enviando comprovante...</span>';
-
-            try {
-                const formData = new FormData();
-                formData.append('file', file);
-                const resp = await fetch('/api/upload', { method: 'POST', headers: { 'X-CSRF-Token': window.CSRF_TOKEN }, body: formData });
-                if (!resp.ok) throw new Error('Falha no upload (HTTP ' + resp.status + ')');
-                const result = await resp.json();
-                if (!result.success) throw new Error(result.error || 'Erro no upload');
-
-                let registros = getRegistros();
-                const idx = registros.findIndex(x => x.id == confirmacaoRegistroId);
-                if (idx === -1) throw new Error('Registro n\u00e3o encontrado');
-
-                registros[idx].pagamento = 'Confirmado';
-                registros[idx].comprovante = result.filename;
-                registros[idx].comprovante_nome = file.name;
-                registros[idx].comprovante_analise = null;
-                saveRegistros(registros);
-
-                if (result.filename) {
-                    pollOcrResult(result.filename, confirmacaoRegistroId);
-                }
-
-                status.innerHTML = '<span style="color:#28a745;">&#10003; Pagamento confirmado com sucesso!</span>';
-                btn.innerHTML = '&#10003; Confirmado';
-                setTimeout(() => {
-                    fecharModalConfirmacao();
-                    carregarRegistros();
-                }, 1500);
-            } catch (e) {
-                status.innerHTML = '<span style="color:#dc3545;">&#9888; Erro: ' + e.message + '. Verifique se o servidor est\u00e1 rodando.</span>';
-                btn.disabled = false;
-                btn.innerHTML = '&#128259; Anexar e Confirmar Pagamento';
-            }
-        }
 
         document.addEventListener('click', function(e) {
             if (e.target.classList.contains('modal-overlay')) {
                 if (e.target.id === 'modal-excluir') {
                     fecharModalExcluir();
+                } else if (e.target.id === 'modal-analise') {
+                    fecharModalAnalise();
                 } else {
                     e.target.classList.remove('active');
                 }
@@ -2021,26 +1793,6 @@
         </div>
     </div>
 
-    <!-- Modal de Confirmação de Pagamento -->
-    <div class="modal-overlay" id="modal-confirmacao">
-        <div class="modal-content" style="max-width:500px;">
-            <div class="modal-header">
-                <h3>&#128259; Confirmar Pagamento</h3>
-                <button class="modal-close" onclick="fecharModalConfirmacao()">&times;</button>
-            </div>
-            <div class="modal-body" id="modal-confirmacao-body">
-                <p style="color:#888;margin-bottom:15px;">Anexe o comprovante de pagamento para confirmar o registro.</p>
-                <div id="confirmacao-info" style="margin-bottom:15px;padding:12px;background:#f8f9fa;border-radius:8px;font-size:14px;"></div>
-                <div class="form-group" style="margin-bottom:15px;">
-                    <label style="display:block;font-size:13px;font-weight:600;color:#555;margin-bottom:6px;">COMPROVANTE DE PAGAMENTO <span style="color:#D01010;">*</span></label>
-                    <input type="file" id="confirmacao-comprovante-input" accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,application/pdf,image/*" style="width:100%;padding:8px 0;">
-                </div>
-                <div id="confirmacao-status" style="margin-bottom:10px;font-size:13px;font-weight:600;"></div>
-                <button class="btn btn-success" id="btn-confirmar-pagamento" onclick="confirmarPagamento()" style="width:100%;justify-content:center;">&#128259; Anexar e Confirmar Pagamento</button>
-            </div>
-        </div>
-    </div>
-
     <!-- Modal de Upload -->
     <div class="modal-overlay" id="modal-upload">
         <div class="modal-content" style="max-width:500px;">
@@ -2061,19 +1813,6 @@
                 </div>
                 <div id="upload-modal-status" style="margin-bottom:10px;font-size:13px;font-weight:600;"></div>
                 <button class="btn btn-success" id="upload-modal-btn" onclick="enviarComprovanteAdmin()" style="width:100%;justify-content:center;">&#128259; Enviar Comprovante</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal QR Code -->
-    <div class="modal-overlay" id="qr-modal">
-        <div class="modal-content" style="max-width:420px;">
-            <div class="modal-header">
-                <h3>&#128241; Acessar do Celular</h3>
-                <button class="modal-close" onclick="document.getElementById('qr-modal').classList.remove('active')">&times;</button>
-            </div>
-            <div class="modal-body" id="qr-modal-body" style="text-align:center;padding:30px 20px;">
-                <p style="color:#888;">Carregando...</p>
             </div>
         </div>
     </div>

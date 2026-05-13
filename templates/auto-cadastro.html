@@ -210,6 +210,16 @@
             .pix-card { flex-direction: column; text-align: center; }
             .pix-card .btn { width: 100%; justify-content: center; }
         }
+
+        .badge-numeros {
+            background: #FCE8E8;
+            color: #D01010;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            display: inline-block;
+        }
     </style>
 </head>
 <body>
@@ -243,25 +253,9 @@
                     </button>
                 </div>
 
-                <!-- QR Code Compartilhar -->
-                <div style="margin-top:25px;padding:20px;background:white;border-radius:12px;border:1px solid #f0e8e8;display:inline-block;box-shadow:0 2px 12px rgba(0,0,0,0.06);">
-                    <div style="font-size:13px;color:#888;margin-bottom:10px;">&#128228; Compartilhe com os amigos</div>
-                    <div style="text-align:center;">
-                        <img id="qr-page-img" src="" alt="QR Code" style="width:120px;height:120px;border-radius:8px;border:1px solid #e0d8d8;cursor:pointer;display:block;margin:0 auto 10px;" onclick="expandirQR()" title="Clique para ampliar">
-                        <div id="qr-compartilhar-btn" onclick="expandirQR()" style="display:inline-flex;align-items:center;gap:8px;padding:12px 28px;background:#D01010;color:#fff;border-radius:50px;font-size:16px;font-weight:600;cursor:pointer;box-shadow:0 2px 12px rgba(208,16,16,0.3);margin-bottom:10px;">
-                            &#128228; Compartilhar
-                        </div>
-                        <div style="font-size:12px;color:#999;">Toque para ver o QR Code e copiar o link</div>
-                    </div>
-                </div>
-
-                <div id="qr-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;justify-content:center;align-items:center;" onclick="fecharQR()">
-                    <div style="background:#fff;border-radius:16px;padding:25px;text-align:center;max-width:90vw;max-height:90vh;box-shadow:0 8px 40px rgba(0,0,0,0.3);" onclick="event.stopPropagation()">
-                        <div style="font-size:16px;font-weight:700;color:#D01010;margin-bottom:15px;">Compartilhe o festival!</div>
-                        <img id="qr-modal-img" src="" alt="QR Code" style="width:250px;height:250px;border-radius:8px;">
-                        <div style="margin-top:12px;font-size:13px;color:#666;word-break:break-all;" id="qr-modal-url"></div>
-                        <button style="margin-top:12px;padding:10px 20px;border:none;border-radius:8px;background:#D01010;color:#fff;font-size:14px;font-weight:600;cursor:pointer;" onclick="copiarLinkAutoCadastro()">&#128203; Copiar Link</button>
-                        <button style="margin-top:8px;padding:8px 25px;border:1px solid #ccc;border-radius:8px;background:#fff;color:#666;font-size:13px;cursor:pointer;" onclick="fecharQR()">Fechar</button>
+                <div style="margin-top:25px;">
+                    <div onclick="copiarLinkAutoCadastro()" style="display:inline-flex;align-items:center;gap:8px;padding:12px 28px;background:#D01010;color:#fff;border-radius:50px;font-size:16px;font-weight:600;cursor:pointer;box-shadow:0 2px 12px rgba(208,16,16,0.3);">
+                        &#128203; Copiar Link do Auto-Cadastro
                     </div>
                 </div>
 
@@ -376,40 +370,81 @@
             return hex.substr(0, 8) + '-' + hex.substr(8, 4) + '-' + hex.substr(12, 4) + '-' + hex.substr(16, 4) + '-' + hex.substr(20, 12);
         }
 
-        function saveRegistros(data) {
+        function getAuthHeaders() {
+            var headers = { 'Content-Type': 'application/json' };
+            var pageToken = window.PAGE_TOKEN;
+            if (pageToken) {
+                headers['Authorization'] = 'Bearer ' + pageToken;
+            }
+            return headers;
+        }
+
+        async function saveRegistros(data, attempt) {
+            if (attempt === undefined) attempt = 1;
             localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
             try {
-                fetch('/api/sync-registros', {
+                var headers = getAuthHeaders();
+                if (attempt > 1) {
+                    headers = { 'Content-Type': 'application/json' };
+                }
+                var resp = await fetch('/salvar', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.CSRF_TOKEN },
+                    headers: headers,
                     body: JSON.stringify({
                         registros: data,
                         excluidos: getIdsExcluidos()
                     })
-                }).then(function(resp) {
-                    if (!resp.ok) mostrarMensagem('Erro ao sincronizar com servidor (HTTP ' + resp.status + '). Recarregue a p\u00e1gina.', 'error');
-                }).catch(function() {
-                    mostrarMensagem('Erro de rede ao sincronizar. Dados salvos localmente.', 'error');
                 });
+                if (resp.ok) {
+                    try {
+                        var body = await resp.json();
+                        if (body && body.registros) {
+                            localStorage.setItem(STORAGE_KEY, JSON.stringify(body.registros));
+                        }
+                    } catch (jsonErr) {
+                        // resposta nao-JSON, dados ja salvos localmente
+                    }
+                } else if (resp.status === 403 && attempt < 2) {
+                    await saveRegistros(data, attempt + 1);
+                } else {
+                    mostrarMensagem('Erro ao sincronizar com servidor (HTTP ' + resp.status + '). Recarregue a p\u00e1gina.', 'error');
+                }
             } catch(e) {
-                mostrarMensagem('Erro ao salvar: ' + e.message, 'error');
+                mostrarMensagem('Erro de rede ao sincronizar. Dados salvos localmente.', 'error');
             }
         }
 
         function resequenceRegistros(registros) {
-            var proximoNumero = 1;
+            var maxId = 0;
+            var maxNum = 0;
             for (var i = 0; i < registros.length; i++) {
-                registros[i].id = String(i + 1);
-                if (!registros[i]._uuid) registros[i]._uuid = generateUUID();
-                var qtd = parseInt(registros[i].quantidade_pulseiras, 10) || 0;
-                var nums = [];
-                for (var j = 0; j < qtd; j++) {
-                    nums.push(proximoNumero);
-                    proximoNumero++;
+                var id = parseInt(registros[i].id, 10);
+                if (!isNaN(id) && id > maxId) maxId = id;
+                if (registros[i].numeros_sorte) {
+                    var parts = registros[i].numeros_sorte.split(',');
+                    for (var j = 0; j < parts.length; j++) {
+                        var num = parseInt(parts[j].trim(), 10);
+                        if (!isNaN(num) && num > maxNum) maxNum = num;
+                    }
                 }
-                registros[i].numeros_sorte = nums.join(',');
+                if (!registros[i]._uuid) registros[i]._uuid = generateUUID();
             }
-            setProximoNumero(proximoNumero);
+            for (var i = 0; i < registros.length; i++) {
+                if (!registros[i].id) {
+                    maxId++;
+                    registros[i].id = String(maxId);
+                }
+                if (!registros[i].numeros_sorte) {
+                    var qtd = parseInt(registros[i].quantidade_pulseiras, 10) || 0;
+                    var nums = [];
+                    for (var j = 0; j < qtd; j++) {
+                        maxNum++;
+                        nums.push(maxNum);
+                    }
+                    registros[i].numeros_sorte = nums.join(',');
+                }
+            }
+            setProximoNumero(maxNum + 1);
             return registros;
         }
 
@@ -452,45 +487,28 @@
             return nums;
         }
 
+        var _msgTimeouts = [];
         function mostrarMensagem(texto, tipo) {
             var container = document.getElementById('message-container');
             if (!container) return;
             container.innerHTML = '';
+            for (var t = 0; t < _msgTimeouts.length; t++) clearTimeout(_msgTimeouts[t]);
+            _msgTimeouts = [];
             var div = document.createElement('div');
             div.className = 'message ' + tipo;
             div.textContent = texto;
             container.appendChild(div);
-            setTimeout(function() {
+            _msgTimeouts.push(setTimeout(function() {
                 div.style.display = 'none';
-            }, 8000);
+            }, 8000));
         }
 
         function getBaseUrl() {
             return window.PUBLIC_URL || (window.location.protocol + '//' + window.location.host);
         }
 
-        function atualizarQRCode() {
-            var base = getBaseUrl();
-            var url = base + '/auto-cadastro';
-            var el = document.getElementById('autocadastro-link-display');
-            if (el) el.textContent = url;
-        }
-
-        function expandirQR() {
-            var base = getBaseUrl();
-            var url = base + '/auto-cadastro';
-            document.getElementById('qr-modal-img').src = '/api/qr-code?size=10&data=' + encodeURIComponent(url);
-            document.getElementById('qr-modal-url').textContent = url;
-            document.getElementById('qr-modal').style.display = 'flex';
-        }
-
-        function fecharQR() {
-            document.getElementById('qr-modal').style.display = 'none';
-        }
-
         function copiarLinkAutoCadastro() {
-            var base = getBaseUrl();
-            var url = base + '/auto-cadastro';
+            var url = window.AUTO_URL || (getBaseUrl() + '/auto-cadastro');
             if (navigator.clipboard) {
                 navigator.clipboard.writeText(url).then(function() {
                     mostrarMensagem('Link copiado! Compartilhe com os amigos.', 'success');
@@ -562,16 +580,39 @@
 
         document.addEventListener('DOMContentLoaded', function() {
             recalcularProximoNumero();
-            atualizarQRCode();
             var pixEl = document.getElementById('pix-chave-display');
             if (pixEl && window.PIX_KEY) pixEl.textContent = window.PIX_KEY;
-            var base = getBaseUrl();
-            var autoUrl = base + '/auto-cadastro';
-            var qrImg = document.getElementById('qr-page-img');
-            if (qrImg) qrImg.src = '/api/qr-code?size=5&data=' + encodeURIComponent(autoUrl);
         });
 
-        function salvarRegistro(event) {
+        function getMaxLocalId() {
+            var registros = getRegistros();
+            var max = 0;
+            for (var i = 0; i < registros.length; i++) {
+                var id = parseInt(registros[i].id, 10);
+                if (!isNaN(id) && id > max) max = id;
+            }
+            return max;
+        }
+
+        function getNextNumeros(qtd) {
+            var registros = getRegistros();
+            var maxNum = 0;
+            for (var i = 0; i < registros.length; i++) {
+                if (registros[i].numeros_sorte) {
+                    var parts = registros[i].numeros_sorte.split(',');
+                    for (var j = 0; j < parts.length; j++) {
+                        var num = parseInt(parts[j].trim(), 10);
+                        if (!isNaN(num) && num > maxNum) maxNum = num;
+                    }
+                }
+            }
+            if (maxNum + qtd > MAX_NUMEROS) return null;
+            var nums = [];
+            for (var k = 1; k <= qtd; k++) nums.push(maxNum + k);
+            return nums;
+        }
+
+        async function salvarRegistro(event) {
             event.preventDefault();
 
             const dados = {
@@ -586,17 +627,35 @@
                 return;
             }
 
-            let registros = getRegistros();
-            const record = { pagamento: 'Pendente', ...dados };
-            registros.push(record);
-            registros = resequenceRegistros(registros);
-            saveRegistros(registros);
+            var qtd = parseInt(dados.quantidade_pulseiras, 10) || 0;
+            var nums = qtd > 0 ? getNextNumeros(qtd) : [];
+            if (qtd > 0 && !nums) {
+                mostrarMensagem('N\u00fameros da sorte esgotados! Apenas ' + (MAX_NUMEROS - getProximoNumero() + 1) + ' dispon\u00edveis.', 'error');
+                return;
+            }
+            var record = {
+                pagamento: 'Pendente',
+                _uuid: generateUUID(),
+                id: String(getMaxLocalId() + 1),
+                numeros_sorte: nums.join(',')
+            };
+            record.nome = dados.nome;
+            record.telefone = dados.telefone;
+            record.email = dados.email;
+            record.quantidade_pulseiras = dados.quantidade_pulseiras;
 
-            const newId = registros[registros.length - 1].id;
-            mostrarMensagem('Cadastro realizado com sucesso! Seu n\u00famero \u00e9 #' + newId + '. Aguarde a confirma\u00e7\u00e3o do organizador.', 'success');
+            let registros = getRegistros();
+            registros.push(record);
+            await saveRegistros(registros);
+
+            var registrosAtualizados = getRegistros();
+            var rec = registrosAtualizados.find(function(r) { return r._uuid === record._uuid; });
+            var displayId = rec ? rec.id : record.id;
+
+            mostrarMensagem('Cadastro realizado com sucesso! Seu n\u00famero \u00e9 #' + displayId + '. Aguarde a confirma\u00e7\u00e3o do organizador.', 'success');
             limparFormulario();
 
-            setTimeout(() => {
+            setTimeout(function() {
                 voltarInicio();
             }, 2000);
         }

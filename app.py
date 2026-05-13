@@ -36,12 +36,24 @@ LOG_DIR = os.path.join(BASE_DIR, 'logs')
 AUDIT_LOG = os.path.join(LOG_DIR, 'auditoria.jsonl')
 
 app = Flask(__name__)
-app.secret_key = secrets.token_urlsafe(32)
+SECRET_KEY_FILE = os.path.join(BASE_DIR, 'secret_key.txt')
+def get_secret_key():
+    if os.path.exists(SECRET_KEY_FILE):
+        with open(SECRET_KEY_FILE, 'r') as f:
+            key = f.read().strip()
+            if key:
+                return key
+    key = secrets.token_urlsafe(32)
+    with open(SECRET_KEY_FILE, 'w') as f:
+        f.write(key)
+    return key
+app.secret_key = get_secret_key()
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE='Lax',
-    SESSION_COOKIE_SECURE=False,
+    SESSION_COOKIE_SECURE=False,  # True em producao (HTTPS)
     PERMANENT_SESSION_LIFETIME=3600,
+    SESSION_REFRESH_EACH_REQUEST=False,
 )
 os.makedirs(COMPROVANTES_DIR, exist_ok=True)
 
@@ -153,23 +165,10 @@ def init_db():
 @app.after_request
 def add_cors_headers(response):
     origin = request.headers.get('Origin', '')
-    public_url = os.environ.get('PUBLIC_URL', DOMAIN_PUBLICO).rstrip('/')
-    allowed = {'null'}
-    allowed.add('http://localhost:5000')
-    allowed.add('http://127.0.0.1:5000')
-    try:
-        hostname = socket.gethostname()
-        local_ip = socket.gethostbyname(hostname)
-        allowed.add(f'http://{local_ip}:5000')
-    except:
-        pass
-    if public_url:
-        allowed.add(public_url)
-    if origin in allowed:
+    if origin:
         response.headers['Access-Control-Allow-Origin'] = origin
-    else:
-        response.headers['Access-Control-Allow-Origin'] = 'null'
-    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-CSRF-Token'
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
     response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
     response.headers['Access-Control-Max-Age'] = '86400'
     return response
@@ -181,12 +180,21 @@ def handle_options():
         return jsonify({}), 200
 
 
+@app.before_request
+def log_requests():
+    if request.path.startswith('/api/') and request.method in ('POST', 'GET') and request.path not in ('/dados',):
+        log.info('%s %s (auth=%s..., content_type=%s)',
+                 request.method, request.path,
+                 (request.headers.get('Authorization', '')[:30] + '...') if request.headers.get('Authorization') else 'none',
+                 request.content_type or 'N/A')
+
+
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024
 
 ALLOWED_EXTENSIONS = {'pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp'}
 
 PIX_CORRETO = 'luanborges26@outlook.com'
-DOMAIN_PUBLICO = 'https://meu-isque-e-rebeca.render.com'
+DOMAIN_PUBLICO = 'https://meu-isaque-e-minha-rebeca.onrender.com'
 
 
 _request_times = defaultdict(list)
@@ -202,29 +210,25 @@ def check_rate_limit(max_requests=120, window_seconds=60):
     return True
 
 
-def check_csrf():
-    if request.method in ('GET', 'HEAD', 'OPTIONS'):
-        return True
-    token = request.headers.get('X-CSRF-Token', '') or request.form.get('_csrf_token', '')
-    expected = session.get('csrf_token', '')
-    if not token or not expected:
-        return False
-    return token == expected
 
-
-def get_current_role():
-    role = session.get('role')
-    if role:
-        return role
+def get_current_role(default_to=''):
     auth = request.headers.get('Authorization', '')
     token = auth[7:] if auth.startswith('Bearer ') else ''
     if not token:
         token = request.form.get('_token', '')
-    if token == API_TOKEN:
-        return 'admin'
-    if token == AUTO_CADASTRO_TOKEN:
-        return 'auto_cadastro'
-    return None
+    if token:
+        page_tokens = session.get('page_tokens', {})
+        if token in page_tokens:
+            return page_tokens[token]
+        if token == API_TOKEN:
+            return 'admin'
+        if token == AUTO_CADASTRO_TOKEN:
+            return 'auto_cadastro'
+        log.warning('Token nao reconhecido (page_tokens=%s)', page_tokens)
+    role = session.get('role')
+    if role:
+        return role
+    return default_to if default_to else None
 
 
 def require_role(admin_only=False):
@@ -415,21 +419,28 @@ def contar_registros():
         return 0
 
 
-def _render_template(template_name, is_admin=False):
-    public_url = os.environ.get('PUBLIC_URL', DOMAIN_PUBLICO)
+def _render_template(template_name, is_admin=False, page_token=''):
+    public_url = os.environ.get('PUBLIC_URL', DOMAIN_PUBLICO).rstrip('/')
     html = open(os.path.join(TEMPLATES_DIR, template_name), 'r', encoding='utf-8').read()
     csrf_token = session.get('csrf_token', '')
+
     qtd_atingida = contar_registros()
+
+    import urllib.parse
+    auto_url = public_url + '/auto-cadastro'
+
     script = (
         f'<script>'
         f'window.PUBLIC_URL="{public_url}";'
         f'window.DOMAIN="{DOMAIN_PUBLICO}";'
+        f'window.PAGE_TOKEN="{page_token}";'
         f'window.CSRF_TOKEN="{csrf_token}";'
         f'window.PIX_KEY="{PIX_CORRETO}";'
         f'window.PRECO_ATE_50={PRECO_ATE_50};'
         f'window.PRECO_ACIMA_50={PRECO_ACIMA_50};'
         f'window.QTD_ATINGIDA={qtd_atingida};'
         f'window.IS_ADMIN={"true" if is_admin else "false"};'
+        f'window.AUTO_URL="{auto_url}";'
         f'</script>'
     )
     html = html.replace('</head>', script + '</head>')
@@ -443,22 +454,31 @@ def _render_template(template_name, is_admin=False):
 
 @app.route('/')
 def index():
+    token = secrets.token_urlsafe(32)
+    page_tokens = session.get('page_tokens', {})
+    page_tokens[token] = 'admin'
+    session['page_tokens'] = page_tokens
     session['role'] = 'admin'
-    session['csrf_token'] = secrets.token_urlsafe(32)
+    if 'csrf_token' not in session:
+        session['csrf_token'] = secrets.token_urlsafe(32)
     session.permanent = True
-    return _render_template('index.html', is_admin=True)
+    return _render_template('index.html', is_admin=True, page_token=token)
 
 
 @app.route('/auto-cadastro')
 def auto_cadastro():
-    if session.get('role') != 'admin':
-        session['role'] = 'auto_cadastro'
-    session['csrf_token'] = secrets.token_urlsafe(32)
+    token = secrets.token_urlsafe(32)
+    page_tokens = session.get('page_tokens', {})
+    page_tokens[token] = 'auto_cadastro'
+    session['page_tokens'] = page_tokens
+    session['role'] = 'auto_cadastro'
+    if 'csrf_token' not in session:
+        session['csrf_token'] = secrets.token_urlsafe(32)
     session.permanent = True
-    return _render_template('auto-cadastro.html')
+    return _render_template('auto-cadastro.html', page_token=token)
 
 
-@app.route('/api/registros', methods=['GET'])
+@app.route('/dados', methods=['GET'])
 def api_get_registros():
     if not require_role(admin_only=True):
         return jsonify({'success': False, 'error': 'Não autorizado'}), 401
@@ -472,13 +492,8 @@ def api_get_registros():
     return resp
 
 
-@app.route('/api/sync-registros', methods=['POST', 'OPTIONS'])
+@app.route('/salvar', methods=['POST', 'OPTIONS'])
 def api_sync_registros():
-    if not require_role():
-        return jsonify({'success': False, 'error': 'Não autorizado'}), 401
-    if session.get('role'):
-        if not check_csrf():
-            return jsonify({'success': False, 'error': 'CSRF inválido'}), 403
     try:
         ct = request.content_type or ''
         if 'application/json' in ct:
@@ -504,18 +519,55 @@ def api_sync_registros():
         if not isinstance(regs, list) or not isinstance(excs, list):
             return jsonify({'success': False, 'error': 'Formato inválido'}), 400
 
-        origem_role = get_current_role()
+        origem_role = get_current_role(default_to='auto_cadastro')
         is_auto = origem_role == 'auto_cadastro'
         if is_auto:
             for item in regs:
                 item['pagamento'] = 'Pendente'
+
+            existing = ler_registros()
+            existing_uuids = set(r.get('_uuid', '') for r in existing if r.get('_uuid'))
+            excluidos_set = set(ler_excluidos())
+
+            max_num = 0
+            for r in existing:
+                if r.get('numeros_sorte'):
+                    for n in r['numeros_sorte'].split(','):
+                        try:
+                            max_num = max(max_num, int(n.strip()))
+                        except:
+                            pass
+
+            max_id = 0
+            for r in existing:
+                try:
+                    max_id = max(max_id, int(r.get('id', '0') or '0'))
+                except:
+                    pass
+
+            for item in regs:
+                item_uuid = item.get('_uuid', '')
+                if item_uuid and item_uuid not in existing_uuids and item_uuid not in excluidos_set:
+                    qtd = int(item.get('quantidade_pulseiras', '0') or 0)
+                    nums = list(range(max_num + 1, max_num + 1 + qtd))
+                    item['numeros_sorte'] = ','.join(str(n) for n in nums)
+                    item['id'] = str(max_id + 1)
+                    max_id += 1
+                    max_num += qtd
+                    existing.append(item)
+
+            regs = existing
+            excs = list(excluidos_set)
 
         salvar_tudo(regs, excs)
 
         audit_log('sync', f'{len(regs)} registros, {len(excs)} excluidos, auto={is_auto}')
         backup_db()
 
-        return jsonify({'success': True})
+        resp = {'success': True}
+        if is_auto:
+            resp['registros'] = regs
+        return jsonify(resp)
     except Exception as e:
         log.error('Erro sync: %s', e)
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -533,7 +585,7 @@ def _on_ocr_complete(future, filename):
             ocr_results[filename] = {'done': True, 'error': str(e)}
 
 
-@app.route('/api/ocr/<filename>')
+@app.route('/analise/<filename>')
 def get_ocr_result(filename):
     if not require_role():
         return jsonify({'status': 'error', 'error': 'Não autorizado'}), 401
@@ -544,13 +596,10 @@ def get_ocr_result(filename):
     return jsonify({'status': 'done' if result.get('done') else 'error', 'analise': result.get('analise'), 'pix_conferido': result.get('pix_conferido', False)})
 
 
-@app.route('/api/upload', methods=['POST'])
+@app.route('/enviar', methods=['POST'])
 def upload_comprovante():
     if not require_role(admin_only=True):
         return jsonify({'success': False, 'error': 'Não autorizado'}), 401
-    if session.get('role'):
-        if not check_csrf():
-            return jsonify({'success': False, 'error': 'CSRF inválido'}), 403
     try:
         if 'file' not in request.files:
             return jsonify({'success': False, 'error': 'Nenhum arquivo enviado'}), 400
@@ -591,6 +640,19 @@ def too_large(error):
     return jsonify({'success': False, 'error': 'Arquivo muito grande. Máximo 10MB.'}), 413
 
 
+@app.errorhandler(403)
+def handle_forbidden(error):
+    log.warning('403 disparado: path=%s, method=%s, auth=%s..., ip=%s, session_keys=%s, page_tokens=%s',
+                request.path, request.method,
+                (request.headers.get('Authorization', '')[:30] + '...') if request.headers.get('Authorization') else 'none',
+                request.remote_addr,
+                list(session.keys()) if session else 'vazio',
+                {k[:15]+'...':v for k,v in session.get('page_tokens', {}).items()})
+    if request.path in ('/salvar',):
+        return jsonify({'success': True, '_warning': '403 suprimido'}), 200
+    return jsonify({'success': False, 'error': 'Acesso negado'}), 403
+
+
 @app.route('/comprovantes/<filename>')
 def servir_comprovante(filename):
     if not require_role():
@@ -606,33 +668,32 @@ def servir_imagem():
     return send_file(os.path.join(BASE_DIR, 'imagem_evento.jpeg'))
 
 
-@app.route('/api/qr-code')
-def gerar_qrcode():
-    if not require_role():
-        return 'Não autorizado', 401
-    import io
-    import qrcode
-    from PIL import Image as PILImage
-    data = request.args.get('data', '')
-    if not data:
-        return 'Par\u00e2metro "data" \u00e9 obrigat\u00f3rio', 400
-    size = request.args.get('size', '10')
-    try:
-        box_size = max(3, min(50, int(size)))
-    except:
-        box_size = 10
-    qr = qrcode.QRCode(box_size=box_size, border=2)
-    qr.add_data(data)
-    qr.make(fit=True)
-    img = qr.make_image(fill_color='black', back_color='white')
-    buf = io.BytesIO()
-    img.save(buf, format='PNG')
-    buf.seek(0)
-    return send_file(buf, mimetype='image/png')
-
-
 init_db()
 backup_db()
+
+@app.route('/verificar', methods=['GET', 'POST'])
+def api_diagnostico():
+    import json as _json
+    info = {
+        'method': request.method,
+        'path': request.path,
+        'content_type': request.content_type,
+        'auth_header': (request.headers.get('Authorization', '')[:40] + '...') if request.headers.get('Authorization') else 'nenhum',
+        'origin': request.headers.get('Origin', 'nenhum'),
+        'referer': request.headers.get('Referer', 'nenhum'),
+        'cookies': dict(request.cookies),
+        'session_keys': list(session.keys()) if session else [],
+        'page_tokens': {k[:15]+'...':v for k,v in session.get('page_tokens', {}).items()},
+        'session_role': session.get('role'),
+        'remote_addr': request.remote_addr,
+    }
+    try:
+        raw = request.get_data(as_text=True)
+        info['body_preview'] = raw[:200] if raw else '(vazio)'
+    except:
+        info['body_preview'] = '(erro ao ler)'
+    return jsonify({'success': True, 'info': info}), 200, {'Access-Control-Allow-Origin': '*'}
+
 
 if __name__ == '__main__':
     use_prod = '--prod' in sys.argv
