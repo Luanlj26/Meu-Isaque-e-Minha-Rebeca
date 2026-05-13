@@ -764,6 +764,28 @@ try:
 except Exception as e:
     log.error('Erro ao inicializar banco: %s', e)
 
+@app.route('/limpar-excluidos', methods=['POST'])
+def api_limpar_excluidos():
+    auth = request.headers.get('Authorization', '')
+    token = auth[7:] if auth.startswith('Bearer ') else ''
+    if token != API_TOKEN:
+        return jsonify({'success': False, 'error': 'Token inválido'}), 401
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        if USANDO_PG:
+            cur.execute('DELETE FROM excluidos')
+        else:
+            cur.execute('DELETE FROM excluidos')
+        conn.commit()
+        conn.close()
+        log.info('Excluidos limpos via API')
+        return jsonify({'success': True, 'mensagem': 'Excluidos limpos com sucesso'})
+    except Exception as e:
+        log.error('Erro ao limpar excluidos: %s', e)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @app.route('/verificar', methods=['GET', 'POST'])
 def api_diagnostico():
     import json as _json
