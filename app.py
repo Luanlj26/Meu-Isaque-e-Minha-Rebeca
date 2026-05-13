@@ -764,12 +764,10 @@ try:
 except Exception as e:
     log.error('Erro ao inicializar banco: %s', e)
 
-@app.route('/limpar-excluidos', methods=['POST'])
+@app.route('/limpar-excluidos', methods=['GET'])
 def api_limpar_excluidos():
-    auth = request.headers.get('Authorization', '')
-    token = auth[7:] if auth.startswith('Bearer ') else ''
-    if token != API_TOKEN:
-        return jsonify({'success': False, 'error': 'Token inválido'}), 401
+    if not require_role(admin_only=True):
+        return jsonify({'success': False, 'error': 'Não autorizado'}), 401
     try:
         conn = get_db()
         cur = conn.cursor()
